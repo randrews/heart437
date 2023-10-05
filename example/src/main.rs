@@ -9,7 +9,7 @@ use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use textgraph::{Color, Drawable, Font, Layer, WHITE};
+use textgraph::{BLUE, Canvas, Color, Drawable, Font, Layer, RectStyle, WHITE};
 
 const WIDTH: u32 = 320;
 const HEIGHT: u32 = 240;
@@ -134,7 +134,8 @@ impl World {
 
         let font = Font::default();
         let mut layer = Layer::new(&font, (10, 5), (25, 25));
-        layer.fill('R', WHITE, Color::rgba(0, 0, 0, 64));
+        layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
+        layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), (1, 1), (5, 3));
         layer.draw(frame, WIDTH as usize);
     }
 }

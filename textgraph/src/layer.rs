@@ -1,3 +1,4 @@
+use std::ops::IndexMut;
 use crate::color::{CLEAR, Color};
 use crate::font::{Font, Glyph};
 
@@ -28,6 +29,11 @@ impl<'a> Layer<'a> {
         }
     }
 
+    /// Returns the size of this Layer
+    pub fn size(&self) -> (usize, usize) {
+        self.size
+    }
+
     /// Returns an iterator used to iterate over all the cells in the layer:
     ///```
     /// # let font = textgraph::Font::default();
@@ -43,50 +49,18 @@ impl<'a> Layer<'a> {
         }
     }
 
-    /// Fill the layer with a given char / color
-    pub fn fill(&mut self, ch: char, fg: Color, bg: Color) {
-        self.chars.fill(Char { ch: ch as u8, fg, bg })
-    }
-
     /// Sets a particular character and color in this grid
     /// ```
     /// # use textgraph::*;
     /// # let font = Font::default();
     /// # let mut layer = Layer::new(&font, (10, 10), (0, 0));
-    /// layer.set((3, 3), 'A', WHITE, CLEAR);
+    /// layer.set((3, 3), Some('A'), Some(WHITE), Some(CLEAR));
     /// ```
-    pub fn set(&mut self, at: (usize, usize), ch: char, fg: Color, bg: Color) {
-        self.chars[at.0 + at.1 * self.size.0] = Char {
-            ch: ch as u8, fg, bg
-        }
-    }
-
-    /// Set the background color of all cells to the given one
-    pub fn fill_background(&mut self, bg: Color) {
-        for ch in self.chars.iter_mut() {
-            ch.bg = bg
-        }
-    }
-
-    /// Set the foreground color of all cells to the given one
-    pub fn fill_foreground(&mut self, fg: Color) {
-        for ch in self.chars.iter_mut() {
-            ch.fg = fg;
-        }
-    }
-
-    /// Set the character at a location without changing the colors. Does nothing if coordinates
-    /// are out of bounds
-    /// ```
-    /// # use textgraph::*;
-    /// # let font = Font::default();
-    /// # let mut layer = Layer::new(&font, (10, 10), (0, 0));
-    /// layer.set_char((3, 3), 'X');
-    /// ```
-    pub fn set_char(&mut self, at: (usize, usize), ch: char) {
-        if let Some(curr) = self.get_mut(at) {
-            curr.ch = ch as u8
-        }
+    pub fn set(&mut self, at: (usize, usize), ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
+        let current = self.chars.index_mut(at.0 + at.1 * self.size.0);
+        ch.map(|ch| current.ch = ch as u8);
+        fg.map(|fg| current.fg = fg);
+        bg.map(|bg| current.bg = bg);
     }
 
     fn get_mut(&mut self, at: (usize, usize)) -> Option<&mut Char> {
