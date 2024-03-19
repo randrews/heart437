@@ -1,82 +1,110 @@
 #![deny(clippy::all)]
 #![forbid(unsafe_code)]
 
+use std::time::{Duration, Instant};
 use error_iter::ErrorIter as _;
 use log::error;
-use pixels::{Error, Pixels, SurfaceTexture};
-use winit::dpi::LogicalSize;
-use winit::event::{Event, VirtualKeyCode};
+use pixels::{Error, Pixels, PixelsBuilder, SurfaceTexture, wgpu};
+use winit::dpi::{LogicalSize, PhysicalSize};
+use winit::error::EventLoopError;
+use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::platform::macos::WindowBuilderExtMacOS;
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
-use textgraph::{BLUE, Canvas, Color, Drawable, Font, Layer, RectStyle, WHITE};
+use textgraph::{BLUE, Canvas, CharSize, Color, Drawable, Font, Layer, PixelSize, RectStyle, WHITE};
 
-const WIDTH: u32 = 320;
-const HEIGHT: u32 = 240;
-const BOX_SIZE: i16 = 64;
+const WIN_SIZE: (u32, u32) = (640, 480);
+const PIX_SIZE: (u32, u32) = (640, 480);
 
-/// Representation of the application state. In this example, a box will bounce around the screen.
-struct World {
-    box_x: i16,
-    box_y: i16,
-    velocity_x: i16,
-    velocity_y: i16,
-}
-
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), EventLoopError> {
     env_logger::init();
-    let event_loop = EventLoop::new();
-    let mut input = WinitInputHelper::new();
-    let window = {
-        let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
-        WindowBuilder::new()
-            .with_title("Hello Pixels")
-            .with_inner_size(size)
-            .with_min_inner_size(size)
-            .build(&event_loop)
-            .unwrap()
-    };
+    let timer_length = Duration::from_millis(15);
+    let mut mouse_pos: (i32, i32) = (-1, -1);
+
+    let event_loop = winit::event_loop::EventLoop::new().expect("Failed to create event loop!");
+    let window = winit::window::WindowBuilder::new()
+        .with_title("The Thing")
+        .with_inner_size(LogicalSize{ width: WIN_SIZE.0, height: WIN_SIZE.1 })
+        .with_min_inner_size(LogicalSize { width: WIN_SIZE.0, height: WIN_SIZE.1 })
+        .build(&event_loop)?;
 
     let mut pixels = {
-        let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
-        Pixels::new(WIDTH, HEIGHT, surface_texture)?
+        let PhysicalSize { width, height } = window.inner_size();
+        let surface_texture = SurfaceTexture::new(width, height, &window);
+        PixelsBuilder::new(PIX_SIZE.0, PIX_SIZE.1, surface_texture)
+            .clear_color(wgpu::Color{ r: 0.1, g: 0.1, b: 0.15, a: 1.0 })
+            .build().expect("Failed to build pixels!")
     };
-    let mut world = World::new();
 
-    event_loop.run(move |event, _, control_flow| {
-        // Draw the current frame
-        if let Event::RedrawRequested(_) = event {
-            world.draw(pixels.frame_mut());
-            if let Err(err) = pixels.render() {
-                log_error("pixels.render", err);
-                *control_flow = ControlFlow::Exit;
-                return;
+    let mut offset = 0;
+    let font = Font::default();
+    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(2, 4), PixelSize(0, 0));
+    layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
+    layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), CharSize(1, 1), CharSize(5, 3));
+
+    event_loop.run(move |event, target| {
+        match event {
+            // Exit if we click the little x
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => { target.exit(); }
+
+            // Redraw if it's redrawing time
+            Event::WindowEvent {
+                event: WindowEvent::RedrawRequested,
+                window_id,
+            } if window_id == window.id() => {
+                let now = Instant::now();
+                layer.set_origin(PixelSize(offset, offset));
+                draw(&mut pixels.frame_mut(), &layer);
+                pixels.render().unwrap();
+                let elapsed = now.elapsed();
+                println!("Redraw time: {:.2?}", elapsed);
             }
+
+            // Start the timer on init
+            Event::NewEvents(StartCause::Init) => {
+                target.set_control_flow(ControlFlow::WaitUntil(Instant::now() + timer_length));
+            }
+
+            // When the timer fires, update the world and restart the timer
+            Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
+                offset = offset + 1;
+                if offset > 100 { offset = 0 }
+                window.request_redraw();
+                target.set_control_flow(ControlFlow::WaitUntil(Instant::now() + timer_length));
+            }
+
+            // Update that the mouse moved if it did
+            Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position: pos, device_id: _ },
+                window_id
+            } if window_id == window.id() => {
+                let lp = pos.to_logical(window.scale_factor());
+                mouse_pos = (lp.x, lp.y);
+            }
+
+            // Do something if the mouse was clicked
+            Event::WindowEvent {
+                window_id, event: WindowEvent::MouseInput { device_id: _, state: ElementState::Pressed, button: MouseButton::Left }
+            } if window_id == window.id() => {
+                // do nothing
+                println!("Click {}, {}", mouse_pos.0, mouse_pos.1)
+            }
+
+            Event::WindowEvent {
+                window_id, event: WindowEvent::Resized(new_size)
+            } if window_id == window.id() => {
+                println!("Resized to {}, {}", new_size.width, new_size.height);
+                pixels.resize_surface(new_size.width, new_size.height).expect("Resize surface failure")
+            }
+
+            // Drop other events
+            _ => {}
         }
-
-        // Handle input events
-        if input.update(&event) {
-            // Close events
-            if input.key_pressed(VirtualKeyCode::Escape) || input.close_requested() {
-                *control_flow = ControlFlow::Exit;
-                return;
-            }
-
-            // Resize the window
-            if let Some(size) = input.window_resized() {
-                if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                    log_error("pixels.resize_surface", err);
-                    *control_flow = ControlFlow::Exit;
-                    return;
-                }
-            }
-
-            // Update internal state and request a redraw
-            world.update();
-            window.request_redraw();
-        }
-    });
+    })
 }
 
 fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
@@ -86,56 +114,7 @@ fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
     }
 }
 
-impl World {
-    /// Create a new `World` instance that can draw a moving box.
-    fn new() -> Self {
-        Self {
-            box_x: 24,
-            box_y: 16,
-            velocity_x: 1,
-            velocity_y: 1,
-        }
-    }
-
-    /// Update the `World` internal state; bounce the box around the screen.
-    fn update(&mut self) {
-        if self.box_x <= 0 || self.box_x + BOX_SIZE > WIDTH as i16 {
-            self.velocity_x *= -1;
-        }
-        if self.box_y <= 0 || self.box_y + BOX_SIZE > HEIGHT as i16 {
-            self.velocity_y *= -1;
-        }
-
-        self.box_x += self.velocity_x;
-        self.box_y += self.velocity_y;
-    }
-
-    /// Draw the `World` state to the frame buffer.
-    ///
-    /// Assumes the default texture format: `wgpu::TextureFormat::Rgba8UnormSrgb`
-    fn draw(&self, frame: &mut [u8]) {
-        for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-            let x = (i % WIDTH as usize) as i16;
-            let y = (i / WIDTH as usize) as i16;
-
-            let inside_the_box = x >= self.box_x
-                && x < self.box_x + BOX_SIZE
-                && y >= self.box_y
-                && y < self.box_y + BOX_SIZE;
-
-            let rgba = if inside_the_box {
-                [0x5e, 0x48, 0xe8, 0xff]
-            } else {
-                [0x48, 0xb2, 0xe8, 0xff]
-            };
-
-            pixel.copy_from_slice(&rgba);
-        }
-
-        let font = Font::default();
-        let mut layer = Layer::new(&font, (10, 5), (25, 25));
-        layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
-        layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), (1, 1), (5, 3));
-        layer.draw(frame, WIDTH as usize);
-    }
+fn draw(frame: &mut [u8], layer: &Layer) {
+    frame.fill(0x0);
+    layer.draw(frame, PIX_SIZE.0 as usize);
 }

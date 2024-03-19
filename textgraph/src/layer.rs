@@ -2,13 +2,26 @@ use std::ops::IndexMut;
 use crate::color::{CLEAR, Color};
 use crate::font::{Font, Glyph};
 
-/// Represents a rectangular grid of colored glyphs. Has a size (in characters) and a position (in pixels).
+/// A dimension in pixel terms. This is "pixel" in the sense of whatever
+/// unspecified thing you're drawing to, meaning, this might get scaled
+/// for a `pixels` scaling factor and a hidpi scaling factor
+#[derive(Copy, Clone, Debug)]
+pub struct PixelSize(pub usize, pub usize);
+
+/// A dimension in character terms.
+#[derive(Copy, Clone, Debug)]
+pub struct CharSize(pub usize, pub usize);
+
+/// Represents a rectangular grid of colored glyphs.
+/// - size (in characters), the character dimensions of the layer
+/// - position (in pixels),
 /// Borrows a font to know which glyphs to draw.
 #[derive(Clone, Debug)]
 pub struct Layer<'a> {
     font: &'a Font,
-    size: (usize, usize),
-    origin: (usize, usize),
+    size: CharSize,
+    scale: PixelSize,
+    origin: PixelSize,
     chars: Vec<Char>
 }
 
@@ -16,29 +29,30 @@ impl<'a> Layer<'a> {
     /// The normal way to create a Layer.
     /// ```
     /// let font = textgraph::Font::default();
-    /// let layer = textgraph::Layer::new(&font, (80, 25), (0, 0));
+    /// let layer = textgraph::Layer::new(&font, textgraph::CharSize(80, 25), textgraph::PixelSize(1, 1), textgraph::PixelSize(0, 0));
     /// ```
-    pub fn new(font: &'a Font, size: (usize, usize), origin: (usize, usize)) -> Self {
+    pub fn new(font: &'a Font, size: CharSize, scale: PixelSize, origin: PixelSize) -> Self {
         let default = Char { ch: 0, fg: CLEAR, bg: CLEAR };
         let chars = vec![default; size.0 * size.1];
         Self {
             font,
             size,
+            scale,
             origin,
             chars
         }
     }
 
     /// Returns the size of this Layer
-    pub fn size(&self) -> (usize, usize) {
+    pub fn size(&self) -> CharSize {
         self.size
     }
 
     /// Returns an iterator used to iterate over all the cells in the layer:
     ///```
     /// # let font = textgraph::Font::default();
-    /// # let layer = textgraph::Layer::new(&font, (10, 10), (0, 0));
-    /// for (glyph, fg, bg, x, y) in layer.cells() {
+    /// # let layer = textgraph::Layer::new(&font, textgraph::CharSize(10, 10), textgraph::PixelSize(1, 1), textgraph::PixelSize(0, 0));
+    /// for (glyph, fg, bg, textgraph::PixelSize(x, y)) in layer.cells() {
     ///   // Draw each glyph in its colors here, at pixel coordinates (x, y)
     /// }
     /// ```
@@ -53,18 +67,22 @@ impl<'a> Layer<'a> {
     /// ```
     /// # use textgraph::*;
     /// # let font = Font::default();
-    /// # let mut layer = Layer::new(&font, (10, 10), (0, 0));
-    /// layer.set((3, 3), Some('A'), Some(WHITE), Some(CLEAR));
+    /// # let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(1, 1), PixelSize(0, 0));
+    /// layer.set(CharSize(3, 3), Some('A'), Some(WHITE), Some(CLEAR));
     /// ```
-    pub fn set(&mut self, at: (usize, usize), ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
+    pub fn set(&mut self, at: CharSize, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
         let current = self.chars.index_mut(at.0 + at.1 * self.size.0);
         ch.map(|ch| current.ch = ch as u8);
         fg.map(|fg| current.fg = fg);
         bg.map(|bg| current.bg = bg);
     }
 
-    fn get_mut(&mut self, at: (usize, usize)) -> Option<&mut Char> {
+    fn get_mut(&mut self, at: CharSize) -> Option<&mut Char> {
         self.chars.get_mut(at.0 + at.1 * self.size.0)
+    }
+
+    pub fn set_origin(&mut self, origin: PixelSize) {
+        self.origin = origin
     }
 }
 
@@ -83,7 +101,7 @@ pub struct CharIterator<'a> {
 }
 
 impl Iterator for CharIterator<'_> {
-    type Item = (Glyph, Color, Color, usize, usize);
+    type Item = (Glyph, Color, Color, PixelSize);
 
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.n;
@@ -93,9 +111,10 @@ impl Iterator for CharIterator<'_> {
         } else {
             let Char{ch, fg, bg} = self.layer.chars[n];
             let glyph = self.layer.font[ch];
-            let px = n % self.layer.size.0 * 8 + self.layer.origin.0;
-            let py = n / self.layer.size.0 * 8 + self.layer.origin.1;
-            Some((glyph, fg, bg, px, py))
+            let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
+            let px = n % self.layer.size.0 * 8 * scalex + self.layer.origin.0;
+            let py = n / self.layer.size.0 * 8 * scaley + self.layer.origin.1;
+            Some((glyph, fg, bg, PixelSize(px, py)))
         }
     }
 }
@@ -113,20 +132,33 @@ impl Drawable for Layer<'_> {
     /// ```
     /// # use textgraph::*;
     /// # let font = Font::default();
-    /// let mut layer = Layer::new(&font, (10, 10), (25, 25));
-    /// layer.fill('R', WHITE, BLUE);
+    /// let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(1, 1), PixelSize(25, 25));
+    /// layer.fill(Some('R'), Some(WHITE), Some(BLUE));
     /// let mut buf = [0u8; (640 * 480 * 4)];
     /// layer.draw(&mut buf, 640);
     /// ```
     fn draw(&self, pixels: &mut [u8], width: usize) {
-        let height = (pixels.len() / 4) / width;
-        for (glyph, fg, bg, x, y) in self.cells() {
+        let (xscale, yscale) = (self.scale.0.max(1), self.scale.1.max(1));
+        let height = (pixels.len() / 4) / width; // Height of the pixel buffer in pixels
+
+        for (glyph, fg, bg, PixelSize(x, y)) in self.cells() {
+            if x >= width || y >= height { continue }
+
             for (color, xo, yo) in &glyph {
-                if (x + xo) < width && (y + yo) < height {
-                    let start = (x + xo) * 4 + (y + yo) * width * 4;
-                    let current = &mut pixels[start .. (start + 4)];
-                    let new = (if color { fg } else { bg }).blend_into(current);
-                    for n in 0..4 { current[n] = new[n] }
+                // Scaling is like drawing a tiny rectangle instead of a single pixel, for each dot:
+                for sy in 0..yscale {
+                    for sx in 0..xscale {
+                        // Pixel coords of the current pixel:
+                        let (px, py) = (x + xscale * xo + sx, y + yscale * yo + sy);
+
+                        // If in bounds:
+                        if px < width && py < height {
+                            let start = px * 4 + py * width * 4; // byte addr of start of pixel
+                            let current = &mut pixels[start .. (start + 4)];
+                            let new = (if color { fg } else { bg }).blend_into(current);
+                            for n in 0..4 { current[n] = new[n] }
+                        }
+                    }
                 }
             }
         }

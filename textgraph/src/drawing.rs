@@ -5,15 +5,15 @@ use crate::layer::*;
 /// ASCII char into a spot on a grid. `Layer` is a canvas.
 pub trait Canvas {
     /// Set a cell, optionally set the color as well
-    fn set(&mut self, at: (usize, usize), ch: Option<char>, fg: Option<Color>, bg: Option<Color>);
+    fn set(&mut self, at: CharSize, ch: Option<char>, fg: Option<Color>, bg: Option<Color>);
 
     /// Return the size of the grid
-    fn size(&self) -> (usize, usize);
+    fn size(&self) -> CharSize;
 
     /// Return whether a given point is within a grid: uses `size` to determine
-    fn within(&self, point: (usize, usize)) -> bool {
-        let (x, y) = point;
-        let (xmax, ymax) = self.size();
+    fn within(&self, point: CharSize) -> bool {
+        let CharSize(x, y) = point;
+        let CharSize(xmax, ymax) = self.size();
         x < xmax && y < ymax
     }
 
@@ -21,14 +21,14 @@ pub trait Canvas {
     /// ```
     /// # use textgraph::*;
     /// # let font = Font::default();
-    /// # let mut layer = Layer::new(&font, (10, 10), (0, 0));
-    /// layer.fill_rect(Some('.'), Some(WHITE), None, (1, 1), (3, 3));
+    /// let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(0, 0));
+    /// layer.fill_rect(Some('.'), Some(WHITE), None, CharSize(1, 1), CharSize(3, 3));
     /// ```
-    fn fill_rect(&mut self, ch: Option<char>, fg: Option<Color>, bg: Option<Color>, pos: (usize, usize), size: (usize, usize)) {
+    fn fill_rect(&mut self, ch: Option<char>, fg: Option<Color>, bg: Option<Color>, pos: CharSize, size: CharSize) {
         for y in pos.1 .. (pos.1 + size.1) {
             for x in pos.0 .. (pos.0 + size.0) {
-                if self.within((x, y)) {
-                    self.set((x, y), ch, fg, bg)
+                if self.within(CharSize(x, y)) {
+                    self.set(CharSize(x, y), ch, fg, bg)
                 }
             }
         }
@@ -36,34 +36,34 @@ pub trait Canvas {
 
     /// Fill with a given char / color
     fn fill(&mut self, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
-        self.fill_rect(ch, fg, bg, (0, 0), self.size())
+        self.fill_rect(ch, fg, bg, CharSize(0, 0), self.size())
     }
 
     /// Draw the outline of a rectangle, clipped to the region of the canvas
     /// Rectangles can be drawn in several styles, see `RectStyle`.
-    fn rect(&mut self, wall: Wall, fg: Option<Color>, bg: Option<Color>, pos: (usize, usize), size: (usize, usize)) {
+    fn rect(&mut self, wall: Wall, fg: Option<Color>, bg: Option<Color>, pos: CharSize, size: CharSize) {
         self.set(pos, Some(wall.nw as char), fg, bg);
-        self.set((pos.0 + size.0 - 1, pos.1), Some(wall.ne as char), fg, bg);
-        self.set((pos.0, pos.1 + size.1 - 1), Some(wall.sw as char), fg, bg);
-        self.set((pos.0 + size.0 - 1, pos.1 + size.1 - 1), Some(wall.se as char), fg, bg);
+        self.set(CharSize(pos.0 + size.0 - 1, pos.1), Some(wall.ne as char), fg, bg);
+        self.set(CharSize(pos.0, pos.1 + size.1 - 1), Some(wall.sw as char), fg, bg);
+        self.set(CharSize(pos.0 + size.0 - 1, pos.1 + size.1 - 1), Some(wall.se as char), fg, bg);
         for x in (pos.0 + 1) .. (pos.0 + size.0 - 1) {
-            self.set((x, pos.1), Some(wall.n as char), fg, bg);
-            self.set((x, pos.1 + size.1 - 1), Some(wall.s as char), fg, bg);
+            self.set(CharSize(x, pos.1), Some(wall.n as char), fg, bg);
+            self.set(CharSize(x, pos.1 + size.1 - 1), Some(wall.s as char), fg, bg);
         }
 
         for y in (pos.1 + 1) .. (pos.1 + size.1 - 1) {
-            self.set((pos.0, y), Some(wall.w as char), fg, bg);
-            self.set((pos.0 + size.0 - 1, y), Some(wall.e as char), fg, bg);
+            self.set(CharSize(pos.0, y), Some(wall.w as char), fg, bg);
+            self.set(CharSize(pos.0 + size.0 - 1, y), Some(wall.e as char), fg, bg);
         }
     }
 }
 
 impl Canvas for Layer<'_> {
-    fn set(&mut self, at: (usize, usize), ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
+    fn set(&mut self, at: CharSize, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
         self.set(at, ch, fg, bg)
     }
 
-    fn size(&self) -> (usize, usize) {
+    fn size(&self) -> CharSize {
         self.size()
     }
 }
