@@ -19,7 +19,7 @@ const PIX_SIZE: (u32, u32) = (640, 480);
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::init();
-    let timer_length = Duration::from_millis(20); // do not make equal to 15
+    let timer_length = Duration::from_millis(10); // do not make equal to 15
     let mut mouse_pos: (i32, i32) = (-1, -1);
 
     let event_loop = winit::event_loop::EventLoop::new().expect("Failed to create event loop!");
@@ -38,10 +38,6 @@ fn main() -> Result<(), EventLoopError> {
     };
 
     let mut offset = 0;
-    let font = Font::default();
-    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(1, 2), PixelSize(0, 0));
-    layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
-    layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), CharSize(1, 1), CharSize(5, 3));
 
     event_loop.run(move |event, target| {
         match event {
@@ -57,8 +53,7 @@ fn main() -> Result<(), EventLoopError> {
                 window_id,
             } if window_id == window.id() => {
                 let now = Instant::now();
-                layer.set_origin(PixelSize(offset, offset));
-                draw(&mut pixels.frame_mut(), &layer);
+                draw(&mut pixels.frame_mut(), offset);
                 pixels.render().unwrap();
                 let elapsed = now.elapsed();
                 println!("Redraw time: {:.2?}", elapsed);
@@ -71,8 +66,8 @@ fn main() -> Result<(), EventLoopError> {
 
             // When the timer fires, update the world and restart the timer
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                offset = offset + 1;
-                if offset > 100 { offset = 0 }
+                offset = offset + 5;
+                if offset > 100 { offset = -100 }
                 window.request_redraw();
                 target.set_control_flow(ControlFlow::WaitUntil(Instant::now() + timer_length));
             }
@@ -114,7 +109,13 @@ fn log_error<E: std::error::Error + 'static>(method_name: &str, err: E) {
     }
 }
 
-fn draw(frame: &mut [u8], layer: &Layer) {
+fn draw(frame: &mut [u8], offset: i32) {
     frame.fill(0x0);
+
+    let font = Font::default();
+    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(1, 2), PixelSize(offset, offset));
+    layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
+    layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), CharSize(1, 1), CharSize(5, 3));
+
     layer.draw(frame, PIX_SIZE.0 as usize);
 }

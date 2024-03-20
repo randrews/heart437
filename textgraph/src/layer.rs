@@ -6,7 +6,7 @@ use crate::font::{Font, Glyph};
 /// unspecified thing you're drawing to, meaning, this might get scaled
 /// for a `pixels` scaling factor and a hidpi scaling factor
 #[derive(Copy, Clone, Debug)]
-pub struct PixelSize(pub usize, pub usize);
+pub struct PixelSize(pub i32, pub i32);
 
 /// A dimension in character terms.
 #[derive(Copy, Clone, Debug)]
@@ -112,8 +112,10 @@ impl Iterator for CharIterator<'_> {
             let Char{ch, fg, bg} = self.layer.chars[n];
             let glyph = self.layer.font[ch];
             let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
-            let px = n % self.layer.size.0 * 8 * scalex + self.layer.origin.0;
-            let py = n / self.layer.size.0 * 8 * scaley + self.layer.origin.1;
+            let n = n as i32;
+            let width = self.layer.size.0 as i32;
+            let px = n % width * 8 * scalex + self.layer.origin.0;
+            let py = n / width * 8 * scaley + self.layer.origin.1;
             Some((glyph, fg, bg, PixelSize(px, py)))
         }
     }
@@ -142,17 +144,20 @@ impl Drawable for Layer<'_> {
         let height = (pixels.len() / 4) / width; // Height of the pixel buffer in pixels
 
         for (glyph, fg, bg, PixelSize(x, y)) in self.cells() {
-            if x >= width || y >= height { continue }
+            if x >= width as i32 || y >= height as i32 { continue }
+            let (right, bottom) = (x + xscale * 8, y + yscale * 8);
+            if right < 0 || bottom < 0 { continue }
 
             for (color, xo, yo) in &glyph {
                 // Scaling is like drawing a tiny rectangle instead of a single pixel, for each dot:
                 for sy in 0..yscale {
                     for sx in 0..xscale {
                         // Pixel coords of the current pixel:
-                        let (px, py) = (x + xscale * xo + sx, y + yscale * yo + sy);
+                        let (px, py) = (x + xscale * xo as i32 + sx, y + yscale * yo as i32 + sy);
 
                         // If in bounds:
-                        if px < width && py < height {
+                        if px < width as i32 && py < height as i32 && px >= 0 && py >= 0 {
+                            let (px, py) = (px as usize, py as usize);
                             let start = px * 4 + py * width * 4; // byte addr of start of pixel
                             let current = &mut pixels[start .. (start + 4)];
                             let new = (if color { fg } else { bg }).blend_into(current);
