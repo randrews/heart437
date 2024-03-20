@@ -1,28 +1,40 @@
-use std::ops::IndexMut;
+use std::ops::{Index, IndexMut};
 use crate::color::{CLEAR, Color};
 use crate::font::{Font, Glyph};
+use crate::{Coord, Grid, xy};
 
 /// A dimension in pixel terms. This is "pixel" in the sense of whatever
 /// unspecified thing you're drawing to, meaning, this might get scaled
 /// for a `pixels` scaling factor and a hidpi scaling factor
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PixelSize(pub i32, pub i32);
 
 /// A dimension in character terms.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct CharSize(pub usize, pub usize);
+
+impl From<Coord> for CharSize {
+    fn from(value: Coord) -> Self {
+        Self(value.0 as usize, value.1 as usize)
+    }
+}
+
+impl Into<Coord> for CharSize {
+    fn into(self) -> Coord {
+        xy(self.0 as i32, self.1 as i32)
+    }
+}
 
 /// Represents a rectangular grid of colored glyphs.
 /// - size (in characters), the character dimensions of the layer
 /// - position (in pixels),
 /// Borrows a font to know which glyphs to draw.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Layer<'a> {
     font: &'a Font,
-    size: CharSize,
     scale: PixelSize,
     origin: PixelSize,
-    chars: Vec<Char>
+    chars: Grid<Char>
 }
 
 impl<'a> Layer<'a> {
@@ -33,10 +45,9 @@ impl<'a> Layer<'a> {
     /// ```
     pub fn new(font: &'a Font, size: CharSize, scale: PixelSize, origin: PixelSize) -> Self {
         let default = Char { ch: 0, fg: CLEAR, bg: CLEAR };
-        let chars = vec![default; size.0 * size.1];
+        let chars = Grid::new(xy(size.0 as i32, size.1 as i32), default);
         Self {
             font,
-            size,
             scale,
             origin,
             chars
@@ -45,7 +56,7 @@ impl<'a> Layer<'a> {
 
     /// Returns the size of this Layer
     pub fn size(&self) -> CharSize {
-        self.size
+        self.chars.dimensions().into()
     }
 
     /// Returns an iterator used to iterate over all the cells in the layer:
@@ -71,18 +82,28 @@ impl<'a> Layer<'a> {
     /// layer.set(CharSize(3, 3), Some('A'), Some(WHITE), Some(CLEAR));
     /// ```
     pub fn set(&mut self, at: CharSize, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
-        let current = self.chars.index_mut(at.0 + at.1 * self.size.0);
+        let current = self.chars.index_mut(at.into());
         ch.map(|ch| current.ch = ch as u8);
         fg.map(|fg| current.fg = fg);
         bg.map(|bg| current.bg = bg);
     }
 
-    fn get_mut(&mut self, at: CharSize) -> Option<&mut Char> {
-        self.chars.get_mut(at.0 + at.1 * self.size.0)
-    }
-
     pub fn set_origin(&mut self, origin: PixelSize) {
         self.origin = origin
+    }
+}
+
+impl Index<CharSize> for Layer<'_> {
+    type Output = u8;
+
+    fn index(&self, index: CharSize) -> &Self::Output {
+        &self.chars.index(index.into()).ch
+    }
+}
+
+impl IndexMut<CharSize> for Layer<'_> {
+    fn index_mut(&mut self, index: CharSize) -> &mut Self::Output {
+        &mut self.chars.index_mut(index.into()).ch
     }
 }
 
@@ -106,17 +127,17 @@ impl Iterator for CharIterator<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.n;
         self.n += 1;
-        if n >= self.layer.chars.len() {
-            None
-        } else {
-            let Char{ch, fg, bg} = self.layer.chars[n];
-            let glyph = self.layer.font[ch];
+        if let Some(ch) = self.layer.chars.get(self.layer.chars.coord(n)) {
+            let Char{ch, fg, bg} = ch;
+            let glyph = self.layer.font[*ch];
             let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
             let n = n as i32;
-            let width = self.layer.size.0 as i32;
+            let width = self.layer.chars.dimensions().0;
             let px = n % width * 8 * scalex + self.layer.origin.0;
             let py = n / width * 8 * scaley + self.layer.origin.1;
-            Some((glyph, fg, bg, PixelSize(px, py)))
+            Some((glyph, *fg, *bg, PixelSize(px, py)))
+        } else {
+            None
         }
     }
 }
@@ -167,5 +188,44 @@ impl Drawable for Layer<'_> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_layer_creation() {
+        let font = Font::default();
+        let layer = Layer::new(&font, CharSize(10, 10), PixelSize(1, 2), PixelSize(0, 0));
+        assert_eq!(layer.scale, PixelSize(1, 2));
+        assert_eq!(layer.origin, PixelSize(0, 0));
+        assert_eq!(layer.size(), CharSize(10, 10));
+    }
+
+    #[test]
+    fn test_layer_access() {
+        let font = Font::default();
+        let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(1, 2), PixelSize(0, 0));
+
+        layer[CharSize(3, 2)] = 'R' as u8;
+        assert_eq!(layer[CharSize(3, 2)], 'R' as u8);
+    }
+
+    #[test]
+    fn test_pixel_coords() {
+        let font = Font::default();
+        let layer = Layer::new(&font, CharSize(10, 10), PixelSize(2, 4), PixelSize(50, 50));
+
+        let mut it = layer.cells();
+        // This places us on the 2nd char on the 2nd row
+        for _ in 0..11 {
+            it.next();
+        }
+        let (_glyph, _fg, _bg, ps) = it.next().unwrap();
+
+        // That top-left coord should be the offset plus a 2x width and a 4x height:
+        assert_eq!(ps, PixelSize(50 + 16, 50 + 32));
     }
 }

@@ -21,7 +21,7 @@ pub trait Canvas {
     /// ```
     /// # use textgraph::*;
     /// # let font = Font::default();
-    /// let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(0, 0));
+    /// let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(0, 0), PixelSize(0, 0));
     /// layer.fill_rect(Some('.'), Some(WHITE), None, CharSize(1, 1), CharSize(3, 3));
     /// ```
     fn fill_rect(&mut self, ch: Option<char>, fg: Option<Color>, bg: Option<Color>, pos: CharSize, size: CharSize) {
