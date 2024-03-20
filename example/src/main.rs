@@ -19,7 +19,7 @@ const PIX_SIZE: (u32, u32) = (640, 480);
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::init();
-    let timer_length = Duration::from_millis(15);
+    let timer_length = Duration::from_millis(20); // do not make equal to 15
     let mut mouse_pos: (i32, i32) = (-1, -1);
 
     let event_loop = winit::event_loop::EventLoop::new().expect("Failed to create event loop!");
@@ -39,7 +39,7 @@ fn main() -> Result<(), EventLoopError> {
 
     let mut offset = 0;
     let font = Font::default();
-    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(2, 4), PixelSize(0, 0));
+    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(1, 2), PixelSize(0, 0));
     layer.fill(Some('R'), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
     layer.rect(RectStyle::DOUBLE.wall(), Some(WHITE), Some(BLUE), CharSize(1, 1), CharSize(5, 3));
 
