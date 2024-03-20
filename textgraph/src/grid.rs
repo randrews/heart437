@@ -43,6 +43,10 @@ impl<T: Clone + Copy> Grid<T> {
         Self { cells, width, default }
     }
 
+    pub fn as_blank(&self) -> Self {
+        Self::new(self.dimensions(), self.default)
+    }
+
     pub fn contains(&self, point: Coord) -> bool {
         let dims = self.dimensions();
         !(point.0 < 0 || point.1 < 0 ||
@@ -87,6 +91,10 @@ impl<T: Clone + Copy> Grid<T> {
             to[c + at] = *cell
         }
     }
+
+    pub fn fill(&mut self, val: T) {
+        self.cells.fill(val)
+    }
 }
 
 impl<T: PartialEq + Clone + Copy> Grid<T> {
@@ -99,6 +107,36 @@ impl<T: PartialEq + Clone + Copy> Grid<T> {
         let e = *self.get_or_default(xy(x+1, y)) == val;
         let w = *self.get_or_default(xy(x-1, y)) == val;
         (n, s, e, w)
+    }
+
+    /// Return a 4-tuple of (ne, se, sw, nw) for whether those neighbors are equal to the
+    /// given value
+    pub fn diagonal_neighbors(&self, point: Coord, val: T) -> (bool, bool, bool, bool) {
+        let (x, y) = (point.0, point.1);
+        let ne = *self.get_or_default(xy(x+1, y-1)) == val;
+        let se = *self.get_or_default(xy(x+1, y+1)) == val;
+        let sw = *self.get_or_default(xy(x-1, y+1)) == val;
+        let nw = *self.get_or_default(xy(x-1, y-1)) == val;
+        (ne, se, sw, nw)
+    }
+
+    pub fn count_neighbors(&self, point: Coord, val: T, diag: bool) -> i32 {
+        let mut t = 0;
+        let (n, s, e, w) = self.neighbors(point, val);
+        if n { t += 1 }
+        if s { t += 1 }
+        if e { t += 1 }
+        if w { t += 1 }
+
+        if diag {
+            let (ne, se, sw, nw) = self.diagonal_neighbors(point, val);
+            if ne { t += 1 }
+            if se { t += 1 }
+            if sw { t += 1 }
+            if nw { t += 1 }
+        }
+
+        t
     }
 
     pub fn any_neighbors(&self, point: Coord, val: T) -> bool {

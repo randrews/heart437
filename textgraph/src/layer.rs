@@ -1,7 +1,6 @@
-use std::ops::{Index, IndexMut};
 use crate::color::{CLEAR, Color};
 use crate::font::{Font, Glyph};
-use crate::{Coord, Grid, xy};
+use crate::{Coord, Grid, WHITE, xy};
 
 /// A dimension in pixel terms. This is "pixel" in the sense of whatever
 /// unspecified thing you're drawing to, meaning, this might get scaled
@@ -31,10 +30,12 @@ impl Into<Coord> for CharSize {
 /// Borrows a font to know which glyphs to draw.
 #[derive(Clone)]
 pub struct Layer<'a> {
-    font: &'a Font,
-    scale: PixelSize,
-    origin: PixelSize,
-    chars: Grid<Char>
+    pub font: &'a Font,
+    pub scale: PixelSize,
+    pub origin: PixelSize,
+    pub chars: Grid<u8>,
+    pub fg: Grid<Color>,
+    pub bg: Grid<Color>,
 }
 
 impl<'a> Layer<'a> {
@@ -44,13 +45,16 @@ impl<'a> Layer<'a> {
     /// let layer = textgraph::Layer::new(&font, textgraph::CharSize(80, 25), textgraph::PixelSize(1, 1), textgraph::PixelSize(0, 0));
     /// ```
     pub fn new(font: &'a Font, size: CharSize, scale: PixelSize, origin: PixelSize) -> Self {
-        let default = Char { ch: 0, fg: CLEAR, bg: CLEAR };
-        let chars = Grid::new(xy(size.0 as i32, size.1 as i32), default);
+        let chars = Grid::new(xy(size.0 as i32, size.1 as i32), ' ' as u8);
+        let fg = Grid::new(xy(size.0 as i32, size.1 as i32), WHITE);
+        let bg = Grid::new(xy(size.0 as i32, size.1 as i32), CLEAR);
         Self {
             font,
             scale,
             origin,
-            chars
+            chars,
+            fg,
+            bg
         }
     }
 
@@ -82,36 +86,11 @@ impl<'a> Layer<'a> {
     /// layer.set(CharSize(3, 3), Some('A'), Some(WHITE), Some(CLEAR));
     /// ```
     pub fn set(&mut self, at: CharSize, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
-        let current = self.chars.index_mut(at.into());
-        ch.map(|ch| current.ch = ch as u8);
-        fg.map(|fg| current.fg = fg);
-        bg.map(|bg| current.bg = bg);
+        let at: Coord = at.into();
+        ch.map(|ch| self.chars[at] = ch as u8);
+        fg.map(|fg| self.fg[at] = fg);
+        bg.map(|bg| self.bg[at] = bg);
     }
-
-    pub fn set_origin(&mut self, origin: PixelSize) {
-        self.origin = origin
-    }
-}
-
-impl Index<CharSize> for Layer<'_> {
-    type Output = u8;
-
-    fn index(&self, index: CharSize) -> &Self::Output {
-        &self.chars.index(index.into()).ch
-    }
-}
-
-impl IndexMut<CharSize> for Layer<'_> {
-    fn index_mut(&mut self, index: CharSize) -> &mut Self::Output {
-        &mut self.chars.index_mut(index.into()).ch
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-struct Char {
-    ch: u8,
-    fg: Color,
-    bg: Color,
 }
 
 /// Iterator over the characters of a `Layer`
@@ -127,15 +106,17 @@ impl Iterator for CharIterator<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.n;
         self.n += 1;
-        if let Some(ch) = self.layer.chars.get(self.layer.chars.coord(n)) {
-            let Char{ch, fg, bg} = ch;
+        let coord = self.layer.chars.coord(n);
+        if let Some(ch) = self.layer.chars.get(coord) {
+            let fg = self.layer.fg[coord];
+            let bg = self.layer.bg[coord];
             let glyph = self.layer.font[*ch];
             let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
             let n = n as i32;
             let width = self.layer.chars.dimensions().0;
             let px = n % width * 8 * scalex + self.layer.origin.0;
             let py = n / width * 8 * scaley + self.layer.origin.1;
-            Some((glyph, *fg, *bg, PixelSize(px, py)))
+            Some((glyph, fg, bg, PixelSize(px, py)))
         } else {
             None
         }
@@ -193,6 +174,8 @@ impl Drawable for Layer<'_> {
 
 #[cfg(test)]
 mod test {
+    use crate::color::YELLOW;
+    use crate::RED;
     use super::*;
 
     #[test]
@@ -209,8 +192,14 @@ mod test {
         let font = Font::default();
         let mut layer = Layer::new(&font, CharSize(10, 10), PixelSize(1, 2), PixelSize(0, 0));
 
-        layer[CharSize(3, 2)] = 'R' as u8;
-        assert_eq!(layer[CharSize(3, 2)], 'R' as u8);
+        let at: Coord = CharSize(3, 2).into();
+        layer.chars[at] = '!' as u8;
+        layer.fg[at] = YELLOW;
+        layer.bg[at] = RED;
+
+        assert_eq!(layer.chars[at], '!' as u8);
+        assert_eq!(layer.fg[at], YELLOW);
+        assert_eq!(layer.bg[at], RED);
     }
 
     #[test]

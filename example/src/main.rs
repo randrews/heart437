@@ -3,6 +3,7 @@
 
 use std::time::{Duration, Instant};
 use pixels::{PixelsBuilder, SurfaceTexture};
+use rand::RngCore;
 use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
@@ -32,7 +33,13 @@ fn main() -> Result<(), EventLoopError> {
 
     let font = Font::default();
     let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(1, 2), PixelSize(0, 0));
-    layer.fill(Some(' '), Some(WHITE), Some(Color::rgba(0, 0, 0, 64)));
+
+    // Prime the layer with some living cells:
+    let mut rng = rand::thread_rng();
+    for _ in 0..800 {
+        let pt = CharSize((rng.next_u32() % 80) as usize, (rng.next_u32() % 30) as usize);
+        layer.chars[pt.into()] = '#' as u8;
+    }
 
     event_loop.run(move |event, target| {
         match event {
@@ -97,6 +104,17 @@ fn main() -> Result<(), EventLoopError> {
 }
 
 fn update(layer: &mut Layer) {
+    let mut new_ch = layer.chars.as_blank();
+    for (idx, ch) in layer.chars.iter().enumerate() {
+        let at = layer.chars.coord(idx);
+        let neighbor_count = layer.chars.count_neighbors(at, '#' as u8, true);
+        if (*ch == ' ' as u8 && neighbor_count == 3) || // New cell is born
+            (*ch == '#' as u8 && (neighbor_count == 2 || neighbor_count == 3)) // Staying alive
+        {
+            new_ch[at] = '#' as u8
+        }
+    }
+    layer.chars = new_ch;
 }
 
 fn draw(frame: &mut [u8], layer: &Layer) {
