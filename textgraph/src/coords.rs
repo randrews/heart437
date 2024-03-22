@@ -11,6 +11,13 @@ pub fn xy(x: i32, y: i32) -> Coord {
     Coord(x, y)
 }
 
+/// A dimension in pixel terms. This is "pixel" in the sense of whatever
+/// unspecified thing you're drawing to, meaning, this might get scaled
+/// for a `pixels` scaling factor and a hidpi scaling factor
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct PixelCoord(pub i32, pub i32);
+pub fn pxy(x: i32, y: i32) -> PixelCoord { PixelCoord(x, y) }
+
 impl Coord {
     pub fn north(&self) -> Coord { Coord(self.0, self.1 - 1) }
     pub fn south(&self) -> Coord { Coord(self.0, self.1 + 1) }
@@ -98,32 +105,13 @@ impl Div<i32> for Coord {
     }
 }
 
-// /// A pixel coordinate: only makes sense on the screen buffer
-// #[derive(Copy, Clone, Debug, PartialEq)]
-// pub struct PixelCoord(pub u32, pub u32);
-// pub fn pc(x: u32, y: u32) -> PixelCoord {
-//     PixelCoord(x, y)
-// }
-//
-// impl From<&Coord> for PixelCoord {
-//     fn from(value: &Coord) -> Self {
-//         Self(value.0 as u32 * 24, value.1 as u32 * 24)
-//     }
-// }
-//
-// impl From<Coord> for PixelCoord {
-//     fn from(value: Coord) -> Self {
-//         Self(value.0 as u32 * 24, value.1 as u32 * 24)
-//     }
-// }
-//
-// impl Add for PixelCoord {
-//     type Output = PixelCoord;
-//
-//     fn add(self, rhs: Self) -> Self::Output {
-//         pc(self.0 + rhs.0, self.1 + rhs.1)
-//     }
-// }
+impl Add for PixelCoord {
+    type Output = PixelCoord;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        pxy(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
 
 // #[derive(Copy, Clone, Debug, PartialEq)]
 // pub struct PixelRect {

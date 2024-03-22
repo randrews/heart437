@@ -8,13 +8,13 @@ use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use textgraph::{Canvas, CharSize, Color, Drawable, Font, Layer, PixelSize, WHITE};
+use textgraph::{Canvas, Coord, Drawable, Font, Layer, PixelCoord, pxy, xy};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);
 
 fn main() -> Result<(), EventLoopError> {
-    let timer_length = Duration::from_millis(10); // do not make equal to 15
+    let timer_length = Duration::from_millis(100); // do not make equal to 15
     let mut mouse_pos: (i32, i32) = (-1, -1);
 
     let event_loop = winit::event_loop::EventLoop::new().expect("Failed to create event loop!");
@@ -32,12 +32,12 @@ fn main() -> Result<(), EventLoopError> {
     };
 
     let font = Font::default();
-    let mut layer = Layer::new(&font, CharSize(80, 30), PixelSize(1, 2), PixelSize(0, 0));
+    let mut layer = Layer::new(&font, xy(80, 30), pxy(1, 2), pxy(0, 0));
 
     // Prime the layer with some living cells:
     let mut rng = rand::thread_rng();
     for _ in 0..800 {
-        let pt = CharSize((rng.next_u32() % 80) as usize, (rng.next_u32() % 30) as usize);
+        let pt = xy((rng.next_u32() % 80) as i32, (rng.next_u32() % 30) as i32);
         layer.chars[pt.into()] = '#' as u8;
     }
 

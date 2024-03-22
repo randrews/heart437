@@ -7,7 +7,7 @@ mod coords;
 
 pub use font::{ Font, Glyph };
 pub use color::{ Color, CLEAR, WHITE, BLACK, RED, GREEN, BLUE };
-pub use layer::{ Layer, Drawable, CharSize, PixelSize };
+pub use layer::{ Layer, Drawable, Cell, MutCell };
 pub use drawing::{ Canvas, RectStyle, Wall };
-pub use coords::{ Coord, xy };
+pub use coords::{ Coord, xy, PixelCoord, pxy };
 pub use grid::{ Grid };
