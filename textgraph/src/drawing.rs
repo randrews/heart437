@@ -1,4 +1,4 @@
-use crate::{Color, Coord, xy};
+use crate::{Color, Coord, OptionCell, xy};
 use crate::layer::*;
 
 /// A Canvas is anything that we can set a cell on: anything that lets us put an optionally-colored
@@ -60,7 +60,7 @@ pub trait Canvas {
 
 impl Canvas for Layer<'_> {
     fn set(&mut self, at: Coord, ch: Option<char>, fg: Option<Color>, bg: Option<Color>) {
-        self.set(at, Cell { ch: ch.map({|c| c as u8}), fg, bg })
+        self.set(at, OptionCell { ch: ch.map(|c| c as u8), fg, bg })
     }
 
     fn size(&self) -> Coord {

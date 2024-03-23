@@ -36,10 +36,10 @@ fn main() -> Result<(), EventLoopError> {
 
     // Prime the layer with some living cells:
     let mut rng = rand::thread_rng();
-    for _ in 0..800 {
-        let pt = xy((rng.next_u32() % 80) as i32, (rng.next_u32() % 30) as i32);
-        layer.chars[pt.into()] = '#' as u8;
-    }
+    // for _ in 0..800 {
+    //     let pt = xy((rng.next_u32() % 80) as i32, (rng.next_u32() % 30) as i32);
+    //     layer.chars()[pt.into()] = '#' as u8;
+    // }
 
     event_loop.run(move |event, target| {
         match event {
@@ -104,17 +104,17 @@ fn main() -> Result<(), EventLoopError> {
 }
 
 fn update(layer: &mut Layer) {
-    let mut new_ch = layer.chars.as_blank();
-    for (idx, ch) in layer.chars.iter().enumerate() {
-        let at = layer.chars.coord(idx);
-        let neighbor_count = layer.chars.count_neighbors(at, '#' as u8, true);
-        if (*ch == ' ' as u8 && neighbor_count == 3) || // New cell is born
-            (*ch == '#' as u8 && (neighbor_count == 2 || neighbor_count == 3)) // Staying alive
-        {
-            new_ch[at] = '#' as u8
-        }
-    }
-    layer.chars = new_ch;
+    // let mut new_ch = layer.chars.as_blank();
+    // for (idx, ch) in layer.chars.iter().enumerate() {
+    //     let at = layer.chars.coord(idx);
+    //     let neighbor_count = layer.chars.count_neighbors(at, '#' as u8, true);
+    //     if (*ch == ' ' as u8 && neighbor_count == 3) || // New cell is born
+    //         (*ch == '#' as u8 && (neighbor_count == 2 || neighbor_count == 3)) // Staying alive
+    //     {
+    //         new_ch[at] = '#' as u8
+    //     }
+    // }
+    // layer.chars = new_ch;
 }
 
 fn draw(frame: &mut [u8], layer: &Layer) {

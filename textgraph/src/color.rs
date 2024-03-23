@@ -1,10 +1,10 @@
 use image::Rgba;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
 /// A simple Color struct
 /// ```
 /// let slashdot = textgraph::Color::rgba(0, 102, 102, 255);
 /// ```
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Color {
     r: u8,
     g: u8,
