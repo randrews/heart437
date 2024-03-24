@@ -43,6 +43,10 @@ impl<T: Clone + Copy> Grid<T> {
         Self { cells, width, default }
     }
 
+    pub fn from_vec(cells: Vec<T>, width: usize, default: T) -> Self {
+        Self { cells, width, default }
+    }
+
     pub fn as_blank(&self) -> Self {
         Self::new(self.dimensions(), self.default)
     }

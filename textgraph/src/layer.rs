@@ -1,6 +1,7 @@
+use std::ops::{Index, IndexMut};
 use crate::color::{Color};
 use crate::font::{Font, Glyph};
-use crate::{BgProxy, Cell, ChProxy, Coord, FgProxy, Grid, OptionCell, pxy, xy};
+use crate::{Cell, Char, Coord, Grid, pxy, xy};
 use crate::coords::PixelCoord;
 
 /// Represents a rectangular grid of colored glyphs.
@@ -19,15 +20,6 @@ pub struct Layer<'a> {
     pub origin: PixelCoord,
 
     data: Grid<Cell>
-    // /// The characters to draw. Each of these can be replaced with another grid as long as it's
-    // /// the same size.
-    // pub chars: Grid<u8>,
-    //
-    // /// The foreground colors of the cells
-    // pub fg: Grid<Color>,
-    //
-    // /// The background colors of the cells
-    // pub bg: Grid<Color>,
 }
 
 impl<'a> Layer<'a> {
@@ -68,49 +60,23 @@ impl<'a> Layer<'a> {
         }
     }
 
-    /// Sets a particular character and color in this grid
-    /// ```
-    /// # use textgraph::*;
-    /// # let font = Font::default();
-    /// # let mut layer = Layer::new(&font, xy(10, 10), pxy(1, 1), pxy(0, 0));
-    /// layer.set(xy(3, 3), OptionCell { ch: Some('A' as u8), fg: Some(WHITE), bg: Some(CLEAR) });
-    /// ```
-    pub fn set(&mut self, at: Coord, cell: OptionCell) {
-        let at: Coord = at.into();
-        let OptionCell { ch, fg, bg} = cell;
-        ch.map(|ch| self.data[at].ch = ch);
-        fg.map(|fg| self.data[at].fg = fg);
-        bg.map(|bg| self.data[at].bg = bg);
-    }
-
-    /// Get the contents of a cell as a struct
-    /// ```
-    /// use textgraph::*;
-    /// # let font = Font::default();
-    /// # let mut layer = Layer::new(&font, xy(10, 10), pxy(2, 4), pxy(50, 50));
-    /// layer.get(xy(2, 3)).ch;
-    /// ```
-    pub fn get(&self, loc: Coord) -> OptionCell {
-        if let Some(c) = self.data.get(loc) {
-            c.into()
-        } else {
-            OptionCell::default()
-        }
-    }
-
     pub fn grid(&self) -> &Grid<Cell> { &self.data }
     pub fn grid_mut(&mut self) -> &mut Grid<Cell> { &mut self.data }
 
-    pub fn fg(&'a mut self) -> FgProxy<'a> {
-        FgProxy(self)
+    pub fn chars(&self) -> Grid<Char> {
+        let v = self.data.iter().map(|c| Char::from(*c));
+        Grid::from_vec(v.collect(), self.data.dimensions().0 as usize, Char(' ' as u8))
     }
+}
 
-    pub fn bg(&'a mut self) -> BgProxy<'a> {
-        BgProxy(self)
-    }
+impl Index<Coord> for Layer<'_> {
+    type Output = Cell;
+    fn index(&self, index: Coord) -> &Self::Output { &self.data[index] }
+}
 
-    pub fn chars(&'a mut self) -> ChProxy<'a> {
-        ChProxy(self)
+impl IndexMut<Coord> for Layer<'_> {
+    fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
+        &mut self.data[index]
     }
 }
 
@@ -194,8 +160,7 @@ impl Drawable for Layer<'_> {
 
 #[cfg(test)]
 mod test {
-    use crate::color::YELLOW;
-    use crate::RED;
+    use crate::{Bg, Char, Fg, RED, YELLOW};
     use super::*;
 
     #[test]
@@ -207,20 +172,18 @@ mod test {
         assert_eq!(layer.size(), xy(10, 10));
     }
 
-    // #[test]
-    // fn test_layer_access() {
-    //     let font = Font::default();
-    //     let mut layer = Layer::new(&font, xy(10, 10), pxy(1, 2), pxy(0, 0));
-    //
-    //     let at: Coord = xy(3, 2);
-    //     layer.chars()[at] = '!' as u8;
-    //     layer.fg()[at] = YELLOW;
-    //     layer.bg()[at] = RED;
-    //
-    //     assert_eq!(layer.chars()[at], '!' as u8);
-    //     assert_eq!(layer.fg()[at], YELLOW);
-    //     assert_eq!(layer.bg()[at], RED);
-    // }
+    #[test]
+    fn test_layer_access() {
+        let font = Font::default();
+        let mut layer = Layer::new(&font, xy(10, 10), pxy(1, 2), pxy(0, 0));
+
+        let at: Coord = xy(3, 2);
+        layer[at] |= Char('!' as u8) + Fg(YELLOW) + Bg(RED);
+
+        assert_eq!(Char::from(layer[at]), Char('!' as u8));
+        assert_eq!(Fg::from(layer[at]), Fg(YELLOW));
+        assert_eq!(Bg::from(layer[at]), Bg(RED));
+    }
 
     #[test]
     fn test_pixel_coords() {
@@ -238,26 +201,11 @@ mod test {
         assert_eq!(ps, pxy(50 + 16, 50 + 32));
     }
 
-    // #[test]
-    // fn test_get_and_mut() {
-    //     let font = Font::default();
-    //     let mut layer = Layer::new(&font, xy(10, 10), pxy(2, 4), pxy(50, 50));
-    //
-    //     *layer.get_mut(xy(2, 3)).ch = 'x' as u8;
-    //     assert_eq!(layer.get(xy(2, 3)).ch.unwrap(), 'x' as u8);
-    // }
-
-    // #[test]
-    // fn test_set() {
-    //     let font = Font::default();
-    //     let mut layer = Layer::new(&font, xy(10, 10), pxy(2, 4), pxy(50, 50));
-    //
-    //     let mut cell = layer.get(xy(0, 0));
-    //     cell.ch = Some('#' as u8);
-    //     cell.fg = None;
-    //     *layer.get_mut(xy(3, 2)).fg = RED;
-    //     layer.set(xy(3, 2), cell);
-    //     assert_eq!(layer.get(xy(3, 2)).ch.unwrap(), '#' as u8);
-    //     assert_eq!(layer.get(xy(3, 2)).fg.unwrap(), RED);
-    // }
+    #[test]
+    fn test_chars() {
+        let font = Font::default();
+        let mut layer = Layer::new(&font, xy(10, 10), pxy(2, 4), pxy(50, 50));
+        layer[xy(3, 5)] |= Char('a' as u8);
+        assert_eq!(layer.chars()[xy(3, 5)], Char('a' as u8));
+    }
 }
