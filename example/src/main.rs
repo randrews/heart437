@@ -8,7 +8,7 @@ use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use textgraph::{Canvas, Char, Coord, Drawable, Font, Grid, Layer, PixelCoord, pxy, xy};
+use textgraph::{Char, Drawable, Font, Layer, pxy, xy, Grid, CountableNeighbors};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);
@@ -104,19 +104,16 @@ fn main() -> Result<(), EventLoopError> {
 }
 
 fn update(layer: &mut Layer) {
-    let mut new_ch = Grid::new(layer.size(), Char(' ' as u8));
-    let chars = layer.chars();
-    for (idx, ch) in chars.iter().enumerate() {
-        let at = chars.coord(idx);
-        let neighbor_count = chars.count_neighbors(at, Char('#' as u8), true);
-        if (*ch == Char(' ' as u8) && neighbor_count == 3) || // New cell is born
-            (*ch == Char('#' as u8) && (neighbor_count == 2 || neighbor_count == 3)) // Staying alive
-        {
-            new_ch[at] = Char('#' as u8)
+    let old_ch = layer.chars();
+    for (pt, cell) in old_ch.iter() {
+        let neighbor_count = old_ch.neighbors_equal(pt, Char('#' as u8)).count() +
+            old_ch.diagonals_equal(pt, Char('#' as u8)).count();
+        if (*cell == Char(' ' as u8) && neighbor_count == 3) ||
+            (*cell == Char('#' as u8) && (neighbor_count == 2 || neighbor_count == 3)) {
+            layer[pt] |= Char('#' as u8)
+        } else {
+            layer[pt] |= Char(' ' as u8)
         }
-    }
-    for (idx, ch) in new_ch.iter().enumerate() {
-        layer[chars.coord(idx)] |= *ch
     }
 }
 

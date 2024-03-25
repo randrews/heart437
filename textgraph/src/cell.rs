@@ -1,5 +1,5 @@
-use std::ops::{Add, AddAssign, BitOr, BitOrAssign};
-use crate::{CLEAR, Color, WHITE, Grid};
+use std::ops::{Add, BitOrAssign};
+use crate::{CLEAR, Color, WHITE};
 
 /// A cell's contents.
 #[derive(Copy, Clone, Debug, PartialEq)]

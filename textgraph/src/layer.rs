@@ -1,8 +1,9 @@
 use std::ops::{Index, IndexMut};
 use crate::color::{Color};
 use crate::font::{Font, Glyph};
-use crate::{Cell, Char, Coord, Grid, pxy, xy};
+use crate::{Cell, Char, Coord, pxy, VecGrid, xy};
 use crate::coords::PixelCoord;
+use crate::grid::Grid;
 
 /// Represents a rectangular grid of colored glyphs.
 /// - size (in characters), the character dimensions of the layer
@@ -19,7 +20,8 @@ pub struct Layer<'a> {
     /// Where to place the layer in the target texture
     pub origin: PixelCoord,
 
-    data: Grid<Cell>
+    width: i32,
+    data: Vec<Cell>
 }
 
 impl<'a> Layer<'a> {
@@ -30,18 +32,15 @@ impl<'a> Layer<'a> {
     /// let layer = Layer::new(&font, xy(80, 25), pxy(1, 1), pxy(0, 0));
     /// ```
     pub fn new(font: &'a Font, size: Coord, scale: PixelCoord, origin: PixelCoord) -> Self {
-        let data = Grid::new(xy(size.0 as i32, size.1 as i32), Cell::default());
+        let len = (size.0 * size.1) as usize;
+        let data = vec![Cell::default(); len];
         Self {
             font,
             scale,
             origin,
             data,
+            width: size.0
         }
-    }
-
-    /// Returns the size of this Layer
-    pub fn size(&self) -> Coord {
-        self.data.dimensions().into()
     }
 
     /// Returns an iterator used to iterate over all the cells in the layer:
@@ -60,23 +59,38 @@ impl<'a> Layer<'a> {
         }
     }
 
-    pub fn grid(&self) -> &Grid<Cell> { &self.data }
-    pub fn grid_mut(&mut self) -> &mut Grid<Cell> { &mut self.data }
+    fn coord(&self, n: usize) -> Coord {
+        let n = n as i32;
+        xy(n % self.width, n / self.width)
+    }
 
-    pub fn chars(&self) -> Grid<Char> {
+    /// Create a new VecGrid<Char> with the characters (uncolored) from this Layer
+    pub fn chars(&self) -> VecGrid<Char> {
         let v = self.data.iter().map(|c| Char::from(*c));
-        Grid::from_vec(v.collect(), self.data.dimensions().0 as usize, Char(' ' as u8))
+        VecGrid::from_vec(v.collect(), self.width as usize, Char(' ' as u8))
     }
 }
 
 impl Index<Coord> for Layer<'_> {
     type Output = Cell;
-    fn index(&self, index: Coord) -> &Self::Output { &self.data[index] }
+    fn index(&self, index: Coord) -> &Self::Output {
+        &self.data[(index.0 + self.width * index.1) as usize]
+    }
 }
 
 impl IndexMut<Coord> for Layer<'_> {
     fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
-        &mut self.data[index]
+        &mut self.data[(index.0 + self.width * index.1) as usize]
+    }
+}
+
+impl Grid for Layer<'_> {
+    fn size(&self) -> Coord {
+        xy(self.width, self.data.len() as i32 / self.width)
+    }
+
+    fn default(&self) -> Self::Output {
+        Cell::default()
     }
 }
 
@@ -93,16 +107,16 @@ impl Iterator for CharIterator<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.n;
         self.n += 1;
-        let coord = self.layer.data.coord(n);
-        if let Some(c) = self.layer.data.get(coord) {
-            let Cell { ch, fg, bg } = c;
-            let glyph = self.layer.font[*ch];
+        let coord = self.layer.coord(n);
+        if let Some(c) = self.layer.get(coord) {
+            let Cell { ch, fg, bg } = *c;
+            let glyph = self.layer.font[ch];
             let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
             let n = n as i32;
-            let width = self.layer.data.dimensions().0;
+            let width = self.layer.width;
             let px = n % width * 8 * scalex + self.layer.origin.0;
             let py = n / width * 8 * scaley + self.layer.origin.1;
-            Some((glyph, *fg, *bg, pxy(px, py)))
+            Some((glyph, fg, bg, pxy(px, py)))
         } else {
             None
         }

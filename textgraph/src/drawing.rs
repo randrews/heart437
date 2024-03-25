@@ -1,4 +1,4 @@
-use crate::{Bg, Char, Color, Coord, Fg, xy};
+use crate::{Bg, Char, Color, Coord, Fg, Grid, xy};
 use crate::layer::*;
 
 /// A Canvas is anything that we can set a cell on: anything that lets us put an optionally-colored
@@ -66,7 +66,7 @@ impl Canvas for Layer<'_> {
     }
 
     fn size(&self) -> Coord {
-        self.size()
+        Grid::size(self)
     }
 }
 
