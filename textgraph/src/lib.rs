@@ -13,5 +13,5 @@ pub use cell::{ Cell, Fg, Bg, Char, FgBg, FgChar, BgChar };
 pub use layer::{Layer, Drawable };
 pub use drawing::{ Canvas, RectStyle, Wall };
 pub use coords::{ Coord, xy, PixelCoord, pxy };
-pub use grid::{Grid, Predicate, EqualityPredicate, CountableNeighbors, GridIterator};
+pub use grid::{Grid, CountableNeighbors, GridIterator};
 pub use vecgrid::{VecGrid};

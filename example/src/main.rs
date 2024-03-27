@@ -105,7 +105,7 @@ fn main() -> Result<(), EventLoopError> {
 
 fn update(layer: &mut Layer) {
     let old_ch = layer.chars();
-    for (pt, cell) in old_ch.iter() {
+    for (pt, cell) in old_ch.iter().enumerate().map(|(n, c)| (old_ch.coord(n), c)) {
         let neighbor_count = old_ch.neighbors_equal(pt, Char('#' as u8)).count() +
             old_ch.diagonals_equal(pt, Char('#' as u8)).count();
         if (*cell == Char(' ' as u8) && neighbor_count == 3) ||

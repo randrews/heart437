@@ -18,6 +18,21 @@ pub trait Grid: Index<Coord> {
             point.0 >= dims.0)
     }
 
+    /// Returns the `Coord` representing the nth cell in the grid, in reading order:
+    /// left-to-right, top-to-bottom. This is useful because this is also the order that
+    /// an `iter()` traverses the grid:
+    /// ```
+    /// # use textgraph::*;
+    /// let grid = VecGrid::from("ABC\nDEF");
+    /// for (n, cell) in grid.iter().enumerate() {
+    ///     let pt = grid.coord(n);
+    /// }
+    /// ```
+    fn coord(&self, n: usize) -> Coord {
+        let Coord(width, _) = self.size();
+        xy(n as i32 % width, n as i32 / width)
+    }
+
     /// Get an Option<T>. `grid[place]` can panic if you access outside the grid; this won't
     fn get(&self, index: Coord) -> Option<&Self::Output> {
         if self.contains(index) {
@@ -29,42 +44,6 @@ pub trait Grid: Index<Coord> {
 
     fn iter(&self) -> GridIterator<Self> where Self: Sized {
         GridIterator { grid: &self, n: 0 }
-    }
-
-    /// Apply the given predicate to the cell at the given point. If the point is outside
-    /// the grid, apply it to the default instead
-    fn apply<F: Predicate<Self::Output>>(&self, point: Coord, pred: &F) -> bool
-        where <Self as Index<Coord>>::Output: Sized {
-        pred.apply(point, self.get(point).unwrap_or(&self.default()))
-    }
-
-    /// Runs a lambda on the neighbors of this cell and returns the directions for which it returns
-    /// true, as a `(n, s, e, w)` tuple. Uses apply, so "neighbors" outside the grid will get the default value.
-    /// ```
-    /// # use textgraph::*;
-    /// let grid = VecGrid::from("+A\nAB");
-    /// let matching = grid.neighbors_matching(xy(0, 0), EqualityPredicate::from('A'));
-    /// let how_many = matching.count();
-    /// ```
-    fn neighbors_matching<T: Predicate<Self::Output>>(&self, point: Coord, pred: T) -> (bool, bool, bool, bool)
-        where Self::Output: Sized {
-        let (x, y) = (point.0, point.1);
-        let n = self.apply(xy(x, y-1), &pred);
-        let s = self.apply(xy(x, y+1), &pred);
-        let e = self.apply(xy(x+1, y), &pred);
-        let w = self.apply(xy(x-1, y), &pred);
-        (n, s, e, w)
-    }
-
-    /// Just like `neighbors_matching` except it returns a tuple of `(ne, se, sw, nw)`
-    fn diagonals_matching<T: Predicate<Self::Output>>(&self, point: Coord, pred: T) -> (bool, bool, bool, bool)
-        where Self::Output: Sized {
-        let (x, y) = (point.0, point.1);
-        let ne = self.apply(xy(x+1, y-1), &pred);
-        let se = self.apply(xy(x+1, y+1), &pred);
-        let nw = self.apply(xy(x-1, y-1), &pred);
-        let sw = self.apply(xy(x-1, y+1), &pred);
-        (ne, se, sw, nw)
     }
 
     /// Runs a given lambda on all orthogonally-adjacent cells, running it on the default
@@ -98,16 +77,16 @@ pub trait Grid: Index<Coord> {
         (ne, se, sw, nw)
     }
 
-    /// Convenience method for `neighbors_matching` just comparing with ==
+    /// Convenience method for `for_neighbors` just comparing with ==
     fn neighbors_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
         where Self::Output: PartialEq + Sized {
-        self.neighbors_matching(point, EqualityPredicate::from(val))
+        self.for_neighbors(point, |_, cell| *cell == val)
     }
 
-    /// Convenience method for `diagonals_matching` just comparing with ==
+    /// Convenience method for `for_diagonals` just comparing with ==
     fn diagonals_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
         where Self::Output: PartialEq + Sized {
-        self.diagonals_matching(point, EqualityPredicate::from(val))
+        self.for_diagonals(point, |_, cell| *cell == val)
     }
 }
 
@@ -136,36 +115,12 @@ pub struct GridIterator<'a, G> where G: Grid + Sized {
 }
 
 impl<'a, G: Grid> Iterator for GridIterator<'a, G> {
-    type Item = (Coord, &'a G::Output);
+    type Item = &'a G::Output;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let width = self.grid.size().0;
-        let coord = xy(self.n % width, self.n / width);
+        let coord = self.grid.coord(self.n as usize);
         self.n += 1;
-        self.grid.get(coord).map(|v| (coord, v))
-    }
-}
-
-pub trait Predicate<T> {
-    fn apply(&self, coord: Coord, value: &T) -> bool;
-}
-
-pub struct EqualityPredicate<T: PartialEq>(T);
-impl<T: PartialEq> Predicate<T> for EqualityPredicate<T> {
-    fn apply(&self, _: Coord, value: &T) -> bool {
-        *value == self.0
-    }
-}
-
-impl<T: PartialEq> From<T> for EqualityPredicate<T> {
-    fn from(value: T) -> Self {
-        Self(value)
-    }
-}
-
-impl<T, F: Fn(Coord, &T) -> bool> Predicate<T> for F {
-    fn apply(&self, coord: Coord, value: &T) -> bool {
-        self(coord, value)
+        self.grid.get(coord)
     }
 }
 
@@ -196,10 +151,10 @@ mod tests {
     fn test_iter() {
         let grid = TestGrid::from("AB\nCD");
         let mut it = grid.iter();
-        assert_eq!(it.next(), Some((xy(0, 0), &'A')));
-        assert_eq!(it.next(), Some((xy(1, 0), &'B')));
-        assert_eq!(it.next(), Some((xy(0, 1), &'C')));
-        assert_eq!(it.next(), Some((xy(1, 1), &'D')));
+        assert_eq!(it.next(), Some(&'A'));
+        assert_eq!(it.next(), Some(&'B'));
+        assert_eq!(it.next(), Some(&'C'));
+        assert_eq!(it.next(), Some(&'D'));
         assert_eq!(it.next(), None);
     }
 
@@ -210,9 +165,9 @@ mod tests {
         // AAA
         let grid = TestGrid::from("ABA\nBBA\nAAA");
         // The one in the center:
-        assert_eq!(grid.neighbors_matching(xy(1, 1), EqualityPredicate::from('B')), (true, false, false, true));
+        assert_eq!(grid.neighbors_equal(xy(1, 1), 'B'), (true, false, false, true));
 
         // One near the edge:
-        assert_eq!(grid.neighbors_matching(xy(1, 0), EqualityPredicate::from('B')), (false, true, false, false))
+        assert_eq!(grid.neighbors_equal(xy(1, 0), 'B'), (false, true, false, false))
     }
 }
