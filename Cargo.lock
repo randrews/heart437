@@ -1020,6 +1020,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "line_drawing"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d1478a313008a3e6c8149995e90a99ee9094034b5c5c3da1eeb81183cb61d1d"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1388,6 +1397,16 @@ name = "pkg-config"
 version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
+
+[[package]]
+name = "playground"
+version = "0.1.0"
+dependencies = [
+ "pixels",
+ "rand",
+ "textgraph",
+ "winit",
+]
 
 [[package]]
 name = "png"
@@ -1789,6 +1808,8 @@ name = "textgraph"
 version = "0.1.0"
 dependencies = [
  "image",
+ "line_drawing",
+ "rand",
 ]
 
 [[package]]

@@ -7,3 +7,10 @@ edition = "2021"
 
 [dependencies]
 image = "0.24"
+rand = { version = "0.8.5", optional = true }
+line_drawing = "1.0.0"
+
+[features]
+default = ["rand"]
+# Features that require a random number generator
+rand = ["dep:rand"]

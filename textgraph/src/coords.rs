@@ -1,14 +1,23 @@
 use std::fmt::Formatter;
+use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul};
+use line_drawing::Point;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Dir { North, South, East, West }
 
 /// A tile coordinate: tiles are 8x8 pixels
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Coord(pub i32, pub i32);
 pub fn xy(x: i32, y: i32) -> Coord {
     Coord(x, y)
+}
+
+impl Hash for Coord {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        self.1.hash(state);
+    }
 }
 
 /// A dimension in pixel terms. This is "pixel" in the sense of whatever
@@ -46,6 +55,11 @@ impl Coord {
     pub fn dist_to(&self, other: Coord) -> f32 {
         let (dx, dy) = (self.0 - other.0, self.1 - other.1);
         ((dx * dx) as f32 + (dy * dy) as f32).sqrt()
+    }
+
+    pub fn manhattan_dist_to(&self, other: Coord) -> i32 {
+        let (dx, dy) = (self.0 - other.0, self.1 - other.1);
+        dx.abs() + dy.abs()
     }
 
     pub fn adjacent(&self, other: Coord) -> bool {
@@ -113,31 +127,54 @@ impl Add for PixelCoord {
     }
 }
 
-// #[derive(Copy, Clone, Debug, PartialEq)]
-// pub struct PixelRect {
-//     pub pos: PixelCoord,
-//     pub size: PixelCoord
-// }
-//
-// impl PixelRect {
-//     pub fn right(&self) -> u32 {
-//         self.pos.0 + self.size.0
-//     }
-//
-//     pub fn bottom(&self) -> u32 {
-//         self.pos.1 + self.size.1
-//     }
-//
-//     pub fn contains(&self, pos: PixelCoord) -> bool {
-//         pos.0 >= self.pos.0 && pos.1 >= self.pos.1 &&
-//             pos.0 < self.pos.0 + self.size.0 &&
-//             pos.1 < self.pos.1 + self.size.1
-//     }
-//
-//     pub fn translate(self, offset: PixelCoord) -> Self {
-//         Self {
-//             pos: self.pos + offset,
-//             size: self.size
-//         }
-//     }
-// }
+impl Into<Point<i32>> for Coord {
+    fn into(self) -> Point<i32> {
+        Point::from((self.0, self.1))
+    }
+}
+impl From<Point<i32>> for Coord {
+    fn from(value: Point<i32>) -> Self {
+        xy(value.0, value.1)
+    }
+}
+
+pub struct CoordIterator {
+    end: Coord,
+    curr: i32
+}
+
+impl Iterator for CoordIterator {
+    type Item = Coord;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.end.0 <= 0 || self.end.1 <= 0 {
+            None
+        } else if self.curr < self.end.0 * self.end.1 {
+            let c = xy(self.curr % self.end.0, self.curr / self.end.0);
+            self.curr += 1;
+            Some(c)
+        } else { None }
+    }
+}
+
+impl IntoIterator for Coord {
+    type Item = Coord;
+    type IntoIter = CoordIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CoordIterator { end: self, curr: 0 }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_iterator() {
+        let mut c = xy(2, 1).into_iter();
+        assert_eq!(c.next(), Some(xy(0, 0)));
+        assert_eq!(c.next(), Some(xy(1, 0)));
+        assert_eq!(c.next(), None);
+    }
+}

@@ -1,8 +1,8 @@
-use std::ops::{Index};
+use std::ops::{Index, IndexMut};
 use crate::coords::{Coord, xy};
 
 /// A trait for operations on a 2d grid of objects
-pub trait Grid: Index<Coord> {
+pub trait Grid: Index<Coord> where Self::Output: Sized {
     /// Return how large the grid is
     fn size(&self) -> Coord;
 
@@ -42,8 +42,19 @@ pub trait Grid: Index<Coord> {
         }
     }
 
-    fn iter(&self) -> GridIterator<Self> where Self: Sized {
-        GridIterator { grid: &self, n: 0 }
+    /// Get an Option<T>. `grid[place]` can panic if you access outside the grid; this won't
+    fn get_mut(&mut self, index: Coord) -> Option<&mut Self::Output>
+    where Self: IndexMut<Coord> {
+        if self.contains(index) {
+            Some(&mut self[index])
+        } else {
+            None
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item=&Self::Output> {
+        let num_cells = (self.size().1 * self.size().0) as usize;
+        (0..num_cells).map(|n| self.get(self.coord(n)).unwrap())
     }
 
     /// Runs a given lambda on all orthogonally-adjacent cells, running it on the default
@@ -54,8 +65,7 @@ pub trait Grid: Index<Coord> {
     /// // Downcase all the neighbors:
     /// let cs = grid.for_neighbors(xy(0, 0), |_c, ch| ch.to_lowercase().next().unwrap());
     /// ```
-    fn for_neighbors<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T)
-        where Self::Output: Sized {
+    fn for_neighbors<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
         let def = self.default();
         let Coord(x, y) = point;
         let n = func(xy(x, y-1), self.get(xy(x, y-1)).unwrap_or(&def));
@@ -66,8 +76,7 @@ pub trait Grid: Index<Coord> {
     }
 
     /// Just like `for_neighbors` except it returns `(ne, se, sw, nw)`
-    fn for_diagonals<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T)
-        where Self::Output: Sized {
+    fn for_diagonals<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
         let def = self.default();
         let Coord(x, y) = point;
         let ne = func(xy(x+1, y-1), self.get(xy(x+1, y-1)).unwrap_or(&def));
@@ -77,16 +86,36 @@ pub trait Grid: Index<Coord> {
         (ne, se, sw, nw)
     }
 
+    /// The coordinates of our orthogonal neighbors, but only the ones actually in the grid
+    fn neighbor_coords(&self, point: Coord) -> impl Iterator<Item=Coord> {
+        let c = vec![point.north(), point.east(), point.south(), point.west()];
+        c.into_iter().filter(|pt| self.contains(*pt))
+    }
+
     /// Convenience method for `for_neighbors` just comparing with ==
     fn neighbors_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
-        where Self::Output: PartialEq + Sized {
+        where Self::Output: PartialEq {
         self.for_neighbors(point, |_, cell| *cell == val)
     }
 
     /// Convenience method for `for_diagonals` just comparing with ==
     fn diagonals_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
-        where Self::Output: PartialEq + Sized {
+        where Self::Output: PartialEq {
         self.for_diagonals(point, |_, cell| *cell == val)
+    }
+
+    /// Returns a coord (arbitrary, but in practice the top-left) of a cell that fits the
+    /// given filter
+    fn find<F: Fn(&Self::Output) -> bool>(&self, test: F) -> Option<Coord> {
+        for c in self.size() {
+            if test(self.get(c).unwrap()) { return Some(c) }
+        }
+        None
+    }
+
+    /// Return an iterator of all the coords that match a certain predicate
+    fn find_all<'a, F: Fn(&Self::Output) -> bool + 'a>(&'a self, test: F) -> impl Iterator<Item=Coord> {
+        self.size().into_iter().filter(move |c| test(self.get(*c).unwrap()))
     }
 }
 
@@ -106,21 +135,6 @@ impl CountableNeighbors for (bool, bool, bool, bool) {
         if *e { t += 1 }
         if *w { t += 1 }
         t
-    }
-}
-
-pub struct GridIterator<'a, G> where G: Grid + Sized {
-    grid: &'a G,
-    n: i32,
-}
-
-impl<'a, G: Grid> Iterator for GridIterator<'a, G> {
-    type Item = &'a G::Output;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let coord = self.grid.coord(self.n as usize);
-        self.n += 1;
-        self.grid.get(coord)
     }
 }
 
