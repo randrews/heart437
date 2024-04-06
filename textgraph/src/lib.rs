@@ -8,11 +8,13 @@ mod vecgrid;
 mod coords;
 mod fov;
 mod keyboard;
+mod sprite;
 
 pub use font::{ Font, Glyph };
 pub use color::{ Color, CLEAR, WHITE, BLACK, RED, GREEN, BLUE, YELLOW, PURPLE };
 pub use cell::{ Cell, Fg, Bg, Char, FgBg, FgChar, BgChar };
-pub use layer::{ Layer, Drawable };
+pub use layer::{ Layer };
+pub use sprite::Sprite;
 pub use drawing::{ Canvas, RectStyle, Wall };
 pub use coords::{ Coord, xy, PixelCoord, pxy, Dir };
 pub use grid::{ Grid, CountableNeighbors };

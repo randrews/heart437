@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 use crate::color::{Color};
 use crate::font::{Font, Glyph};
-use crate::{Cell, Char, Coord, pxy, VecGrid, xy};
+use crate::{Cell, Char, Coord, pxy, Sprite, VecGrid, xy};
 use crate::coords::PixelCoord;
 use crate::grid::Grid;
 
@@ -59,15 +59,81 @@ impl<'a> Layer<'a> {
         }
     }
 
-    fn coord(&self, n: usize) -> Coord {
-        let n = n as i32;
-        xy(n % self.width, n / self.width)
+    /// Returns the `PixelCoord` corresponding to a given `Coord` in this layer, taking into account
+    /// the scale factor and origin.
+    pub fn pixel_coord(&self, coord: Coord) -> PixelCoord {
+        let (scalex, scaley) = (self.scale.0.max(1), self.scale.1.max(1));
+        let px = coord.0 * 8 * scalex + self.origin.0;
+        let py = coord.1 * 8 * scaley + self.origin.1;
+        pxy(px, py)
     }
 
     /// Create a new VecGrid<Char> with the characters (uncolored) from this Layer
     pub fn chars(&self) -> VecGrid<Char> {
         let v = self.data.iter().map(|c| Char::from(*c));
         VecGrid::from_vec(v.collect(), self.width as usize, Char(' ' as u8))
+    }
+
+    fn blit(&self, pixels: &mut [u8], width: usize, glyph: Glyph, fg: Color, bg: Color, pc: PixelCoord, scale: PixelCoord) {
+        let PixelCoord(x, y) = pc;
+        let PixelCoord(xscale, yscale) = scale;
+        let height = (pixels.len() / 4) / width; // Height of the pixel buffer in pixels
+
+        if x >= width as i32 || y >= height as i32 { return }
+        let (right, bottom) = (x + xscale * 8, y + yscale * 8);
+        if right < 0 || bottom < 0 { return }
+
+        for (color, xo, yo) in &glyph {
+            // Scaling is like drawing a tiny rectangle instead of a single pixel, for each dot:
+            for sy in 0..yscale {
+                for sx in 0..xscale {
+                    // Pixel coords of the current pixel:
+                    let (px, py) = (x + xscale * xo as i32 + sx, y + yscale * yo as i32 + sy);
+
+                    // If in bounds:
+                    if px < width as i32 && py < height as i32 && px >= 0 && py >= 0 {
+                        let (px, py) = (px as usize, py as usize);
+                        let start = px * 4 + py * width * 4; // byte addr of start of pixel
+                        let current = &mut pixels[start .. (start + 4)];
+                        let new = (if color { fg } else { bg }).blend_into(current);
+                        for n in 0..4 { current[n] = new[n] }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Draws the Layer into the frame at its pixel position:
+    /// ```
+    /// # use textgraph::*;
+    /// # let font = Font::default();
+    /// let mut layer = Layer::new(&font, Coord(10, 10), PixelCoord(1, 1), PixelCoord(25, 25));
+    /// layer.fill(Some('R'), Some(WHITE), Some(BLUE));
+    /// let mut buf = [0u8; (640 * 480 * 4)];
+    /// layer.draw(&mut buf, 640);
+    /// ```
+    pub fn draw(&self, pixels: &mut [u8], width: usize) {
+        let scale = PixelCoord(self.scale.0.max(1), self.scale.1.max(1));
+
+        for (glyph, fg, bg, pc) in self.cells() {
+            self.blit(pixels, width, glyph, fg, bg, pc, scale)
+        }
+    }
+
+    /// Draw a list of sprites to the pixel buffer. Sprites aren't stored as part of the layer,
+    /// you can manage them separately (like in an ECS), but it's often useful to draw them with
+    /// the same layout as the layer they're on top of.
+    /// Sprites store a cell, their own scale (which still treats 1x as a minimum), and a position,
+    /// which is treeated as an offset from the layer's position: if the layer has position (50, 50)
+    /// and a sprite has position (25, 25), the sprite will actually be drawn at (75, 75). In other
+    /// words, moving the layer also moves the sprites it draws.
+    pub fn draw_sprites<'b, I: Iterator<Item=&'b Sprite>, II: IntoIterator<IntoIter=I>>(&self, sprites: II, pixels: &mut [u8], width: usize) {
+        for sprite in sprites {
+            let Cell { ch, fg, bg} = sprite.cell;
+            let glyph = self.font[ch];
+            let scale = PixelCoord(sprite.scale.0.max(1), sprite.scale.1.max(1));
+            self.blit(pixels, width, glyph, fg, bg, sprite.position + self.origin, scale)
+        }
     }
 }
 
@@ -111,63 +177,9 @@ impl Iterator for CharIterator<'_> {
         if let Some(c) = self.layer.get(coord) {
             let Cell { ch, fg, bg } = *c;
             let glyph = self.layer.font[ch];
-            let (scalex, scaley) = (self.layer.scale.0.max(1), self.layer.scale.1.max(1));
-            let n = n as i32;
-            let width = self.layer.width;
-            let px = n % width * 8 * scalex + self.layer.origin.0;
-            let py = n / width * 8 * scaley + self.layer.origin.1;
-            Some((glyph, fg, bg, pxy(px, py)))
+            Some((glyph, fg, bg, self.layer.pixel_coord(coord)))
         } else {
             None
-        }
-    }
-}
-
-/// Represents the capability of drawing oneself to an array of RGBA pixels
-/// The `pixels` argument is a mutable borrow of pixels (four u8s, RGBA order)
-/// in a rectangle `width` pixels wide. Drawing will be clipped to the actual
-/// size of the array
-pub trait Drawable {
-    fn draw(&self, pixels: &mut [u8], width: usize);
-}
-
-impl Drawable for Layer<'_> {
-    /// Draws the Layer into the frame at its pixel position:
-    /// ```
-    /// # use textgraph::*;
-    /// # let font = Font::default();
-    /// let mut layer = Layer::new(&font, Coord(10, 10), PixelCoord(1, 1), PixelCoord(25, 25));
-    /// layer.fill(Some('R'), Some(WHITE), Some(BLUE));
-    /// let mut buf = [0u8; (640 * 480 * 4)];
-    /// layer.draw(&mut buf, 640);
-    /// ```
-    fn draw(&self, pixels: &mut [u8], width: usize) {
-        let (xscale, yscale) = (self.scale.0.max(1), self.scale.1.max(1));
-        let height = (pixels.len() / 4) / width; // Height of the pixel buffer in pixels
-
-        for (glyph, fg, bg, PixelCoord(x, y)) in self.cells() {
-            if x >= width as i32 || y >= height as i32 { continue }
-            let (right, bottom) = (x + xscale * 8, y + yscale * 8);
-            if right < 0 || bottom < 0 { continue }
-
-            for (color, xo, yo) in &glyph {
-                // Scaling is like drawing a tiny rectangle instead of a single pixel, for each dot:
-                for sy in 0..yscale {
-                    for sx in 0..xscale {
-                        // Pixel coords of the current pixel:
-                        let (px, py) = (x + xscale * xo as i32 + sx, y + yscale * yo as i32 + sy);
-
-                        // If in bounds:
-                        if px < width as i32 && py < height as i32 && px >= 0 && py >= 0 {
-                            let (px, py) = (px as usize, py as usize);
-                            let start = px * 4 + py * width * 4; // byte addr of start of pixel
-                            let current = &mut pixels[start .. (start + 4)];
-                            let new = (if color { fg } else { bg }).blend_into(current);
-                            for n in 0..4 { current[n] = new[n] }
-                        }
-                    }
-                }
-            }
         }
     }
 }
