@@ -7,7 +7,8 @@ use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use textgraph::{Char, Drawable, Font, Layer, pxy, xy, Grid, CellularMap};
+use winit::platform::scancode::PhysicalKeyExtScancode;
+use textgraph::{Char, Drawable, Font, Layer, pxy, xy, Grid, CellularMap, Dir, ToDirection, Fg, Color, Bg, WHITE, BLACK, BLUE};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);
@@ -37,11 +38,17 @@ fn main() -> Result<(), EventLoopError> {
 
     let now = Instant::now();
     let map = CellularMap::new(xy(80, 60)).build(&mut rng);
+    let wall = Char('x' as u8) + Fg(Color::rgba(0xff, 0x99, 0x0, 0xff)) + Bg(BLACK);
+    let empty = Char(' ' as u8) + Fg(WHITE) + Bg(BLACK);
+    let player = Char('@' as u8) + Fg(WHITE) + Bg(BLUE);
     for pt in layer.size() {
-        layer[pt] |= Char(if map[pt] { 'x' as u8 } else { ' ' as u8 })
+        layer[pt] |= if map[pt] { wall } else { empty }
     }
     let elapsed = now.elapsed();
     println!("Mapgen time: {:.2?}", elapsed);
+
+    let mut player_loc = map.find(|c| !*c).unwrap();
+    layer[player_loc] |= Char('@' as u8);
 
     event_loop.run(move |event, target| {
         match event {
@@ -56,8 +63,11 @@ fn main() -> Result<(), EventLoopError> {
                 event: WindowEvent::RedrawRequested,
                 window_id,
             } if window_id == window.id() => {
+                let start = Instant::now();
                 draw(&mut pixels.frame_mut(), &layer);
                 pixels.render().unwrap();
+                let dur = Instant::now() - start;
+                println!("Drawn in {:.2?} ({} fps)", dur, 1000.0 / dur.as_millis() as f32)
             }
 
             // Start the timer on init
@@ -89,6 +99,24 @@ fn main() -> Result<(), EventLoopError> {
                 println!("Click {}, {}", mouse_pos.0, mouse_pos.1)
             }
 
+            // Handle keyboard events
+            Event::WindowEvent {
+                window_id, event: WindowEvent::KeyboardInput { event, .. }
+            } if window_id == window.id() => {
+                if event.state.is_pressed() {
+                    let dir: Option<Dir> = event.physical_key.to_scancode().to_direction();
+                    if let Some(dir) = dir {
+                        let new = player_loc.translate(dir);
+                        if layer[new] == empty {
+                            layer[player_loc] |= empty;
+                            layer[new] |= player;
+                            player_loc = new;
+                            window.request_redraw();
+                        }
+                    }
+                }
+            }
+
             Event::WindowEvent {
                 window_id, event: WindowEvent::Resized(new_size)
             } if window_id == window.id() => {
@@ -108,4 +136,5 @@ fn update(_layer: &mut Layer) {
 fn draw(frame: &mut [u8], layer: &Layer) {
     frame.fill(0x0);
     layer.draw(frame, PIX_SIZE.0 as usize);
+
 }
