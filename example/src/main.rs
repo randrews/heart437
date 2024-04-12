@@ -8,7 +8,7 @@ use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow};
-use textgraph::{Char, Drawable, Font, Layer, pxy, xy, Grid, CountableNeighbors};
+use textgraph::{Char, Font, Layer, pxy, xy, Grid, CountableNeighbors};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);

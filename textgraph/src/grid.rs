@@ -1,15 +1,20 @@
-use std::ops::{Index, IndexMut};
 use crate::coords::{Coord, xy};
-use crate::VecGrid;
 
 /// A trait for operations on a 2d grid of objects
-pub trait Grid: Index<Coord> where Self::Output: Sized {
+pub trait Grid {
+    /// The type of thing this is a grid of
+    type CellType;
+
     /// Return how large the grid is
     fn size(&self) -> Coord;
 
     /// The default value to use for unset cells in the grid (or if we look at
     /// a cell outside the grid)
-    fn default(&self) -> Self::Output;
+    fn default(&self) -> Self::CellType;
+
+    /// Get a cell in the grid. This function must return `Some` for any point within
+    /// the size of the grid, and `None` for any point outside the grid.
+    fn get(&self, index: Coord) -> Option<&Self::CellType>;
 
     /// Is a given point inside the grid?
     fn contains(&self, point: Coord) -> bool {
@@ -34,34 +39,15 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
         xy(n as i32 % width, n as i32 / width)
     }
 
-    /// Get an Option<T>. `grid[place]` can panic if you access outside the grid; this won't
-    fn get(&self, index: Coord) -> Option<&Self::Output> {
-        if self.contains(index) {
-            Some(&self[index])
-        } else {
-            None
-        }
-    }
-
-    /// Get an Option<T>. `grid[place]` can panic if you access outside the grid; this won't
-    fn get_mut(&mut self, index: Coord) -> Option<&mut Self::Output>
-    where Self: IndexMut<Coord> {
-        if self.contains(index) {
-            Some(&mut self[index])
-        } else {
-            None
-        }
-    }
-
-    fn iter(&self) -> impl Iterator<Item=&Self::Output> {
+    fn iter(&self) -> impl Iterator<Item=&Self::CellType> {
         let num_cells = (self.size().1 * self.size().0) as usize;
         (0..num_cells).map(|n| self.get(self.coord(n)).unwrap())
     }
 
-    fn map<A, F: Fn(Coord, &Self::Output) -> A>(&self, func: F) -> Vec<A> {
+    fn map<A, F: Fn(Coord, &Self::CellType) -> A>(&self, func: F) -> Vec<A> {
         let mut grid = Vec::with_capacity((self.size().0 * self.size().1) as usize);
         for pt in self.size() {
-            grid.push(func(pt, &self[pt]))
+            grid.push(func(pt, self.get(pt).unwrap()))
         }
         grid
     }
@@ -74,7 +60,7 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
     /// // Downcase all the neighbors:
     /// let cs = grid.for_neighbors(xy(0, 0), |_c, ch| ch.to_lowercase().next().unwrap());
     /// ```
-    fn for_neighbors<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
+    fn for_neighbors<T, F: Fn(Coord, &Self::CellType) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
         let def = self.default();
         let Coord(x, y) = point;
         let n = func(xy(x, y-1), self.get(xy(x, y-1)).unwrap_or(&def));
@@ -85,7 +71,7 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
     }
 
     /// Just like `for_neighbors` except it returns `(ne, se, sw, nw)`
-    fn for_diagonals<T, F: Fn(Coord, &Self::Output) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
+    fn for_diagonals<T, F: Fn(Coord, &Self::CellType) -> T>(&self, point: Coord, func: F) -> (T, T, T, T) {
         let def = self.default();
         let Coord(x, y) = point;
         let ne = func(xy(x+1, y-1), self.get(xy(x+1, y-1)).unwrap_or(&def));
@@ -102,20 +88,20 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
     }
 
     /// Convenience method for `for_neighbors` just comparing with ==
-    fn neighbors_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
-        where Self::Output: PartialEq {
+    fn neighbors_equal(&self, point: Coord, val: Self::CellType) -> (bool, bool, bool, bool)
+        where Self::CellType: PartialEq {
         self.for_neighbors(point, |_, cell| *cell == val)
     }
 
     /// Convenience method for `for_diagonals` just comparing with ==
-    fn diagonals_equal(&self, point: Coord, val: Self::Output) -> (bool, bool, bool, bool)
-        where Self::Output: PartialEq {
+    fn diagonals_equal(&self, point: Coord, val: Self::CellType) -> (bool, bool, bool, bool)
+        where Self::CellType: PartialEq {
         self.for_diagonals(point, |_, cell| *cell == val)
     }
 
     /// Returns a coord (arbitrary, but in practice the top-left) of a cell that fits the
     /// given filter
-    fn find<F: Fn(&Self::Output) -> bool>(&self, test: F) -> Option<Coord> {
+    fn find<F: Fn(&Self::CellType) -> bool>(&self, test: F) -> Option<Coord> {
         for c in self.size() {
             if test(self.get(c).unwrap()) { return Some(c) }
         }
@@ -123,9 +109,16 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
     }
 
     /// Return an iterator of all the coords that match a certain predicate
-    fn find_all<'a, F: Fn(&Self::Output) -> bool + 'a>(&'a self, test: F) -> impl Iterator<Item=Coord> {
+    fn find_all<'a, F: Fn(&Self::CellType) -> bool + 'a>(&'a self, test: F) -> impl Iterator<Item=Coord> {
         self.size().into_iter().filter(move |c| test(self.get(*c).unwrap()))
     }
+}
+
+/// A trait that can be applied to any `Grid` to represent mutating cells in the grid.
+pub trait GridMut: Grid {
+    /// This behaves just like `get`: it must return `Some` for any coord in the bounds of the
+    /// grid and `None` outside.
+    fn get_mut(&mut self, index: Coord) -> Option<&mut Self::CellType>;
 }
 
 /// Trait impld on `(bool, bool, bool, bool)` to make it easy to count
@@ -152,14 +145,18 @@ mod tests {
     use super::*;
 
     struct TestGrid(Vec<char>, i32);
-    impl Index<Coord> for TestGrid {
-        type Output = char;
-        fn index(&self, index: Coord) -> &Self::Output { &self.0[index.0 as usize + (index.1 * self.1) as usize] }
-    }
-
     impl Grid for TestGrid {
+        type CellType = char;
         fn size(&self) -> Coord { xy(self.1, self.0.len() as i32 / self.1) }
-        fn default(&self) -> Self::Output { ' ' }
+        fn default(&self) -> Self::CellType { ' ' }
+
+        fn get(&self, index: Coord) -> Option<&char> {
+            if self.contains(index) {
+                Some(&self.0[index.0 as usize + (index.1 * self.1) as usize])
+            } else {
+                None
+            }
+        }
     }
 
     impl From<&str> for TestGrid {

@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut};
 use crate::{Coord, Grid, xy};
+use crate::grid::GridMut;
 
 /// An implementation of Grid backed by a Vec
 #[derive(Clone)]
@@ -9,28 +10,43 @@ pub struct VecGrid<T> {
     default: T
 }
 
-impl<T: Clone> Index<Coord> for VecGrid<T> {
-    type Output = T;
-
-    fn index(&self, index: Coord) -> &Self::Output {
-        &self.cells[index.1 as usize * self.width + index.0 as usize]
-    }
-}
-
-impl<T: Clone> IndexMut<Coord> for VecGrid<T> {
-    fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
-        &mut self.cells[index.1 as usize * self.width + index.0 as usize]
-    }
-}
-
 impl<T: Clone> Grid for VecGrid<T> {
+    type CellType = T;
+
     fn size(&self) -> Coord {
         xy(self.width as i32, (self.cells.len() / self.width) as i32)
     }
 
-    fn default(&self) -> Self::Output {
+    fn default(&self) -> T {
         self.default.clone()
     }
+
+    fn get(&self, index: Coord) -> Option<&T> {
+        if self.contains(index) {
+            Some(&self.cells[index.1 as usize * self.width + index.0 as usize])
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: Clone> GridMut for VecGrid<T> {
+    fn get_mut(&mut self, index: Coord) -> Option<&mut T> {
+        if self.contains(index) {
+            Some(&mut self.cells[index.1 as usize * self.width + index.0 as usize])
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: Clone> Index<Coord> for VecGrid<T> {
+    type Output = T;
+    fn index(&self, index: Coord) -> &Self::Output { self.get(index).unwrap() }
+}
+
+impl<T: Clone> IndexMut<Coord> for VecGrid<T> {
+    fn index_mut(&mut self, index: Coord) -> &mut Self::Output { self.get_mut(index).unwrap() }
 }
 
 impl<T: Clone + Copy> VecGrid<T> {
@@ -39,9 +55,16 @@ impl<T: Clone + Copy> VecGrid<T> {
         let cells = vec![default; width * height];
         Self { cells, width, default }
     }
+}
 
+impl<T: Clone> VecGrid<T> {
     pub fn from_vec(cells: Vec<T>, width: usize, default: T) -> Self {
         Self { cells, width, default }
+    }
+
+    pub fn map_grid<A: Clone, F: Fn(Coord, &T) -> A>(&self, func: F, default: A) -> VecGrid<A> {
+        let list = self.map(func);
+        VecGrid::from_vec(list, self.width, default)
     }
 }
 
@@ -55,6 +78,17 @@ impl From<&str> for VecGrid<char> {
             width,
             default: ' '
         }
+    }
+}
+
+impl Into<String> for VecGrid<char> {
+    fn into(self) -> String {
+        let mut s = String::with_capacity(((self.size().0 + 1) * self.size().1) as usize);
+        for pt in self.size() {
+            if pt.0 == 0 && pt.1 > 0 { s.push('\n') }
+            s.push(self[pt])
+        }
+        s
     }
 }
 

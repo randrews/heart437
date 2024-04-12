@@ -16,7 +16,7 @@ pub use layer::{ Layer };
 pub use sprite::Sprite;
 pub use drawing::{ Canvas, RectStyle, Wall };
 pub use coords::{ Coord, xy, PixelCoord, pxy, Dir };
-pub use grid::{ Grid, CountableNeighbors };
+pub use grid::{ Grid, GridMut, CountableNeighbors };
 pub use vecgrid::{VecGrid};
 pub use keyboard::ToDirection;
 

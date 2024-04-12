@@ -3,7 +3,7 @@ use crate::color::{Color};
 use crate::font::{Font, Glyph};
 use crate::{Cell, Char, Coord, pxy, Sprite, VecGrid, xy};
 use crate::coords::PixelCoord;
-use crate::grid::Grid;
+use crate::grid::{Grid, GridMut};
 
 /// Represents a rectangular grid of colored glyphs.
 /// - size (in characters), the character dimensions of the layer
@@ -137,27 +137,40 @@ impl<'a> Layer<'a> {
     }
 }
 
-impl Index<Coord> for Layer<'_> {
-    type Output = Cell;
-    fn index(&self, index: Coord) -> &Self::Output {
-        &self.data[(index.0 + self.width * index.1) as usize]
-    }
-}
-
-impl IndexMut<Coord> for Layer<'_> {
-    fn index_mut(&mut self, index: Coord) -> &mut Self::Output {
-        &mut self.data[(index.0 + self.width * index.1) as usize]
-    }
-}
-
 impl Grid for Layer<'_> {
+    type CellType = Cell;
     fn size(&self) -> Coord {
         xy(self.width, self.data.len() as i32 / self.width)
     }
-
-    fn default(&self) -> Self::Output {
+    fn default(&self) -> Cell {
         Cell::default()
     }
+    fn get(&self, index: Coord) -> Option<&Cell> {
+        if self.contains(index) {
+            Some(&self.data[(index.0 + self.width * index.1) as usize])
+        } else {
+            None
+        }
+    }
+}
+
+impl GridMut for Layer<'_> {
+    fn get_mut(&mut self, index: Coord) -> Option<&mut Cell> {
+        if self.contains(index) {
+            Some(&mut self.data[(index.0 + self.width * index.1) as usize])
+        } else {
+            None
+        }
+    }
+}
+
+impl Index<Coord> for Layer<'_> {
+    type Output = Cell;
+    fn index(&self, index: Coord) -> &Self::Output { self.get(index).unwrap() }
+}
+
+impl IndexMut<Coord> for Layer<'_> {
+    fn index_mut(&mut self, index: Coord) -> &mut Self::Output { self.get_mut(index).unwrap() }
 }
 
 /// Iterator over the characters of a `Layer`

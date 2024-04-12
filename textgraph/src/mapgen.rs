@@ -83,7 +83,7 @@ impl CellularMap {
     }
 }
 
-fn bft<T, F: Fn(&T) -> bool>(grid: &impl Grid<Output=T>, start: Coord, traversable: F) -> Vec<Coord> {
+fn bft<T, F: Fn(&T) -> bool>(grid: &impl Grid<CellType=T>, start: Coord, traversable: F) -> Vec<Coord> {
     let mut open = vec![start];
     let mut visited: Vec<Coord> = vec![];
     let mut closed: HashSet<Coord> = HashSet::new();
@@ -91,7 +91,7 @@ fn bft<T, F: Fn(&T) -> bool>(grid: &impl Grid<Output=T>, start: Coord, traversab
     while !open.is_empty() {
         let curr = open.remove(0);
         closed.insert(curr);
-        if traversable(&grid[curr]) {
+        if traversable(grid.get(curr).unwrap()) {
             visited.push(curr);
             let mut to_add= vec![];
             for nbr in grid.neighbor_coords(curr).filter(|c| !closed.contains(c) && !open.contains(c) && !visited.contains(c)) {

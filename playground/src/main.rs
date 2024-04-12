@@ -2,13 +2,15 @@
 #![forbid(unsafe_code)]
 
 use std::time::{Duration, Instant};
+
 use pixels::{PixelsBuilder, SurfaceTexture};
 use winit::dpi::{LogicalSize, PhysicalSize};
 use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
-use winit::event_loop::{ControlFlow};
+use winit::event_loop::ControlFlow;
 use winit::platform::scancode::PhysicalKeyExtScancode;
-use textgraph::{Char, Font, Layer, pxy, xy, Grid, CellularMap, Dir, ToDirection, Fg, Color, Bg, WHITE, BLACK, BLUE, Sprite, VecGrid, shadowcast, Coord, RED};
+
+use textgraph::{Bg, BLACK, BLUE, CellularMap, Char, Color, Coord, Dir, Fg, Font, Grid, Layer, pxy, shadowcast, Sprite, ToDirection, VecGrid, WHITE, xy};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);
@@ -69,11 +71,11 @@ fn main() -> Result<(), EventLoopError> {
                 event: WindowEvent::RedrawRequested,
                 window_id,
             } if window_id == window.id() => {
-                let start = Instant::now();
+                // let start = Instant::now();
                 draw(&mut pixels.frame_mut(), &layer, &fov, &player);
                 pixels.render().unwrap();
-                let dur = Instant::now() - start;
-                println!("Drawn in {:.2?} ({} fps)", dur, 1000.0 / dur.as_millis() as f32)
+                // let dur = Instant::now() - start;
+                //println!("Drawn in {:.2?} ({} fps)", dur, 1000.0 / dur.as_millis() as f32)
             }
 
             // Start the timer on init
@@ -141,8 +143,12 @@ fn update(_layer: &mut Layer) {
 }
 
 fn calculate_fov(layer: &Layer, player_loc: Coord) -> VecGrid<bool> {
+    let start = Instant::now();
     let transparent = VecGrid::from_vec(layer.map(|_pt, c| c.ch != 'x' as u8), layer.size().0 as usize, true);
-    shadowcast(transparent, player_loc, 20)
+    let visible = shadowcast(transparent, player_loc, 20);
+    let dur = Instant::now() - start;
+    println!("FOV in {:.2?}", dur);
+    visible
 }
 
 fn draw(frame: &mut [u8], layer: &Layer, fov: &VecGrid<bool>, player: &Sprite) {
