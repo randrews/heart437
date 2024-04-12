@@ -6,7 +6,6 @@ mod drawing;
 mod grid;
 mod vecgrid;
 mod coords;
-mod fov;
 mod keyboard;
 mod sprite;
 
@@ -19,9 +18,14 @@ pub use drawing::{ Canvas, RectStyle, Wall };
 pub use coords::{ Coord, xy, PixelCoord, pxy, Dir };
 pub use grid::{ Grid, CountableNeighbors };
 pub use vecgrid::{VecGrid};
-pub use fov::shadowcast;
 pub use keyboard::ToDirection;
 
 #[cfg(feature="rand")]
 mod mapgen;
+#[cfg(feature="rand")]
 pub use mapgen::CellularMap;
+
+#[cfg(feature = "fov")]
+mod fov;
+#[cfg(feature = "fov")]
+pub use fov::shadowcast;

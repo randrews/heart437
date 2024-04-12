@@ -8,7 +8,7 @@ use winit::error::EventLoopError;
 use winit::event::{ElementState, Event, MouseButton, StartCause, WindowEvent};
 use winit::event_loop::{ControlFlow};
 use winit::platform::scancode::PhysicalKeyExtScancode;
-use textgraph::{Char, Font, Layer, pxy, xy, Grid, CellularMap, Dir, ToDirection, Fg, Color, Bg, WHITE, BLACK, BLUE, Sprite};
+use textgraph::{Char, Font, Layer, pxy, xy, Grid, CellularMap, Dir, ToDirection, Fg, Color, Bg, WHITE, BLACK, BLUE, Sprite, VecGrid, shadowcast, Coord, RED};
 
 const WIN_SIZE: (u32, u32) = (640, 480);
 const PIX_SIZE: (u32, u32) = (640, 480);
@@ -54,6 +54,8 @@ fn main() -> Result<(), EventLoopError> {
     let mut player_loc = map.find(|c| !*c).unwrap();
     player.position = layer.pixel_coord(player_loc);
 
+    let mut fov = calculate_fov(&layer, player_loc);
+
     event_loop.run(move |event, target| {
         match event {
             // Exit if we click the little x
@@ -68,7 +70,7 @@ fn main() -> Result<(), EventLoopError> {
                 window_id,
             } if window_id == window.id() => {
                 let start = Instant::now();
-                draw(&mut pixels.frame_mut(), &layer, &player);
+                draw(&mut pixels.frame_mut(), &layer, &fov, &player);
                 pixels.render().unwrap();
                 let dur = Instant::now() - start;
                 println!("Drawn in {:.2?} ({} fps)", dur, 1000.0 / dur.as_millis() as f32)
@@ -114,6 +116,8 @@ fn main() -> Result<(), EventLoopError> {
                         if layer.contains(new) && layer[new] == empty {
                             player.position = layer.pixel_coord(new);
                             player_loc = new;
+                            fov = calculate_fov(&layer, player_loc);
+
                             window.request_redraw();
                         }
                     }
@@ -136,8 +140,20 @@ fn main() -> Result<(), EventLoopError> {
 fn update(_layer: &mut Layer) {
 }
 
-fn draw(frame: &mut [u8], layer: &Layer, player: &Sprite) {
+fn calculate_fov(layer: &Layer, player_loc: Coord) -> VecGrid<bool> {
+    let transparent = VecGrid::from_vec(layer.map(|_pt, c| c.ch != 'x' as u8), layer.size().0 as usize, true);
+    shadowcast(transparent, player_loc, 20)
+}
+
+fn draw(frame: &mut [u8], layer: &Layer, fov: &VecGrid<bool>, player: &Sprite) {
     frame.fill(0x0);
-    layer.draw(frame, PIX_SIZE.0 as usize);
+    let mut draw_layer = layer.clone();
+    for pt in layer.size() {
+        if !fov[pt] {
+            draw_layer[pt] = Char('#' as u8) + Bg(Color::rgba(140, 140, 140, 255)) + Fg(BLACK)
+        }
+    }
+
+    draw_layer.draw(frame, PIX_SIZE.0 as usize);
     layer.draw_sprites([player], frame, PIX_SIZE.0 as usize);
 }

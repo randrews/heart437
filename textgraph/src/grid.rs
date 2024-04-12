@@ -1,5 +1,6 @@
 use std::ops::{Index, IndexMut};
 use crate::coords::{Coord, xy};
+use crate::VecGrid;
 
 /// A trait for operations on a 2d grid of objects
 pub trait Grid: Index<Coord> where Self::Output: Sized {
@@ -55,6 +56,14 @@ pub trait Grid: Index<Coord> where Self::Output: Sized {
     fn iter(&self) -> impl Iterator<Item=&Self::Output> {
         let num_cells = (self.size().1 * self.size().0) as usize;
         (0..num_cells).map(|n| self.get(self.coord(n)).unwrap())
+    }
+
+    fn map<A, F: Fn(Coord, &Self::Output) -> A>(&self, func: F) -> Vec<A> {
+        let mut grid = Vec::with_capacity((self.size().0 * self.size().1) as usize);
+        for pt in self.size() {
+            grid.push(func(pt, &self[pt]))
+        }
+        grid
     }
 
     /// Runs a given lambda on all orthogonally-adjacent cells, running it on the default
