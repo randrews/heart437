@@ -28,7 +28,7 @@ pub trait Grid {
     /// left-to-right, top-to-bottom. This is useful because this is also the order that
     /// an `iter()` traverses the grid:
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// let grid = VecGrid::from("ABC\nDEF");
     /// for (n, cell) in grid.iter().enumerate() {
     ///     let pt = grid.coord(n);
@@ -55,7 +55,7 @@ pub trait Grid {
     /// Runs a given lambda on all orthogonally-adjacent cells, running it on the default
     /// for any cells not in the grid
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// let grid = VecGrid::from("+A\nAB");
     /// // Downcase all the neighbors:
     /// let cs = grid.for_neighbors(xy(0, 0), |_c, ch| ch.to_lowercase().next().unwrap());

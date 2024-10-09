@@ -2,7 +2,7 @@ use image::Rgba;
 
 /// A simple Color struct
 /// ```
-/// let slashdot = textgraph::Color::rgba(0, 102, 102, 255);
+/// let slashdot = heart437::Color::rgba(0, 102, 102, 255);
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Color {
@@ -20,7 +20,7 @@ impl Color {
     /// Return the RGBA bytes of this color laid over an opaque background of another color.
     /// The bg arg is a [u8; 4] but only the first three bytes (r, g, b) matter.
     /// ```
-    /// textgraph::Color::rgba(0, 0, 0, 127).blend_into(&[0, 120, 160, 255]);
+    /// heart437::Color::rgba(0, 0, 0, 127).blend_into(&[0, 120, 160, 255]);
     /// ```
     pub fn blend_into(&self, bg: &[u8]) -> [u8; 4] {
         let a = (self.a as f32) / 255.0;

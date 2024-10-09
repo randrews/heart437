@@ -19,7 +19,7 @@ pub trait Canvas {
 
     /// Fill a rectangle with a single character. The rectangle is clipped to the region of the canvas.
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// # let font = Font::default();
     /// let mut layer = Layer::new(&font, xy(10, 10), pxy(0, 0), pxy(0, 0));
     /// layer.fill_rect(Some('.'), Some(WHITE), None, xy(1, 1), xy(3, 3));
@@ -109,7 +109,7 @@ impl RectStyle {
     /// Return the characters needed for a given RectStyle to draw a rectangular border in that
     /// style
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// RectStyle::DOUBLE.wall();
     pub fn wall(self) -> Wall {
         match self {

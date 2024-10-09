@@ -59,7 +59,7 @@ impl<'a> IntoIterator for &'a Glyph {
 
     /// Convert a `&Glyph` into an iterator over each pixel
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// # let font = Font::default();
     /// let glyph = font[65];
     /// for (on, x, y) in &glyph {
@@ -77,7 +77,7 @@ impl<'a> IntoIterator for &'a Glyph {
 impl From<[u8; 8]> for Glyph {
     /// Create a glyph from an 8x8 bitmap. Each byte is a row, low-order bit is the right edge
     /// ```
-    /// let glyph = textgraph::Glyph::from([
+    /// let glyph = heart437::Glyph::from([
     ///   0b00000000,
     ///   0b00011000,
     ///   0b10011000,
@@ -110,7 +110,7 @@ impl Font {
     /// The image must be a transparent PNG; any pixel with 0 for alpha is taken to be background,
     /// anything non-zero alpha is foreground.
     /// ```
-    /// let font = textgraph::Font::from_png(include_bytes!("font.png"));
+    /// let font = heart437::Font::from_png(include_bytes!("font.png"));
     /// ```
     pub fn from_png(image_data: &[u8]) -> Self {
         let image = image::load_from_memory_with_format(image_data, image::ImageFormat::Png).unwrap();

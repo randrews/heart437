@@ -72,20 +72,20 @@ macro_rules! property_sum {
 /// from these component structs: `Fg`, `Bg`, and `Char`. These can me added together in various
 /// combinations to make a `Cell`:
 /// ```
-/// # use textgraph::*;
+/// # use heart437::*;
 /// let player = Fg(WHITE) + Bg(BLUE) + Char('@' as u8);
 /// let inverted = Fg(BLACK) + Bg(RED); // An FgBg
 /// let wall = Char('#' as u8) + inverted; // Which can later be used in a Cell
 /// ```
 /// You can also deconstruct a `Cell` with `From`:
 /// ```
-/// # use textgraph::*;
+/// # use heart437::*;
 /// let player = Fg(WHITE) + Bg(BLUE) + Char('@' as u8);
 /// let player_color = FgBg::from(player);
 /// ```
 /// A `Cell` can be modified with the `|=` operator, to apply changes from component structs:
 /// ```
-/// # use textgraph::*;
+/// # use heart437::*;
 /// let mut player = Fg(WHITE) + Bg(BLUE) + Char('@' as u8);
 /// player |= Fg(BLACK) + Bg(RED); // Change its color
 /// ```

@@ -27,7 +27,7 @@ pub struct Layer<'a> {
 impl<'a> Layer<'a> {
     /// The normal way to create a Layer.
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// let font = Font::default();
     /// let layer = Layer::new(&font, xy(80, 25), pxy(1, 1), pxy(0, 0));
     /// ```
@@ -45,7 +45,7 @@ impl<'a> Layer<'a> {
 
     /// Returns an iterator used to iterate over all the cells in the layer:
     ///```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// # let font = Font::default();
     /// # let layer = Layer::new(&font, xy(10, 10), pxy(1, 1), pxy(0, 0));
     /// for (glyph, fg, bg, PixelCoord(x, y)) in layer.cells() {
@@ -105,7 +105,7 @@ impl<'a> Layer<'a> {
 
     /// Draws the Layer into the frame at its pixel position:
     /// ```
-    /// # use textgraph::*;
+    /// # use heart437::*;
     /// # let font = Font::default();
     /// let mut layer = Layer::new(&font, Coord(10, 10), PixelCoord(1, 1), PixelCoord(25, 25));
     /// layer.fill(Some('R'), Some(WHITE), Some(BLUE));
